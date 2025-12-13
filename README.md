@@ -11,6 +11,10 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - 🎯 **Clean popup UI**: All controls in a beautiful floating popup menu
 - ⌨️ **Keyboard shortcuts**: Quick access to controls
 - 🚀 **Quick samples**: Built-in examples to get started instantly
+- ➡️ **Horizontal layout**: Graph flows left-to-right for better readability
+- 🔍 **Search & filter**: Real-time search bar to find nodes
+- ✏️ **Editable nodes**: Click any node to view and edit its properties
+- 📏 **Smart truncation**: Long content automatically truncated with ellipsis
 
 ## Live Demo
 
@@ -178,12 +182,30 @@ The main graph visualization component.
 - `clear()` - Clear the current graph
 - `exportSVG()` - Export the graph as SVG string
 - `handleResize()` - Re-render with new dimensions
+- `searchNodes(query)` - Programmatically search/filter nodes
+
+#### Events
+
+- `nodeEdited` - Fired when a node is edited and saved
+  - `event.detail.node` - The edited node data
+  - `event.detail.data` - The complete updated data structure
 
 #### Example
 
 ```javascript
 const viewer = document.getElementById('graphViewer');
 viewer.setData(myData);
+
+// Listen for node edits
+viewer.addEventListener('nodeEdited', (event) => {
+  console.log('Node edited:', event.detail.node);
+  console.log('Updated data:', event.detail.data);
+});
+
+// Programmatically search
+viewer.searchNodes('SEQUENCE');
+
+// Export graph
 const svg = viewer.exportSVG();
 ```
 
@@ -215,6 +237,31 @@ panel.addEventListener('decoded', (event) => {
 - **Zoom**: Scroll wheel or pinch gesture
 - **Pan**: Click and drag on background
 - **Move nodes**: Click and drag individual nodes
+- **Search nodes**: Type in the search bar to filter nodes
+- **Edit nodes**: Click on any node to open the edit modal
+  - View node type, path, and all properties
+  - Edit property values in textarea fields
+  - View raw JSON data
+  - Save or cancel changes
+
+### Search Feature
+
+The search bar at the top-left allows you to filter nodes in real-time:
+- Searches both node names and property values
+- Matching nodes are highlighted with a red border and glow
+- Non-matching nodes are dimmed (30% opacity)
+- Clear the search to show all nodes again
+
+### Edit Feature
+
+Click any node to open an edit popup with:
+- **Node Type**: The ASN.1 type name
+- **Path**: The hierarchical path to the node
+- **Editable Fields**: Textarea for each property value
+- **Raw Data**: Read-only JSON view of the complete node data
+- **Actions**: Save changes or cancel
+
+When you save changes, the graph automatically re-renders with the updated values.
 
 ## Features in Detail
 
