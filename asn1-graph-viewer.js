@@ -486,7 +486,10 @@ class ASN1GraphViewer extends HTMLElement {
         .attr("stroke-width", 2)
         .on("click", function(event) {
           event.stopPropagation();
-          self.showEditModal(d);
+          // Only open modal if not dragging
+          if (!self.dragging || !self.dragging()) {
+            self.showEditModal(d);
+          }
         });
 
       // Add title
@@ -529,12 +532,17 @@ class ASN1GraphViewer extends HTMLElement {
     });
 
     // Add drag behavior for horizontal layout
+    // Track if dragging occurred to prevent click event after drag
+    let dragging = false;
+
     nodes.call(
       d3.drag()
         .on("start", function(event, d) {
+          dragging = false;
           d3.select(this).raise();
         })
         .on("drag", function(event, d) {
+          dragging = true;
           d.x = event.y;  // Swapped
           d.y = event.x;  // Swapped
           d3.select(this).attr("transform", `translate(${d.y}, ${d.x})`);
@@ -552,7 +560,16 @@ class ASN1GraphViewer extends HTMLElement {
             .attr("x", (d) => (d.source.y + d.target.y) / 2)
             .attr("y", (d) => d.target.x - 10);
         })
+        .on("end", function(event, d) {
+          // Reset dragging flag after a short delay
+          setTimeout(() => {
+            dragging = false;
+          }, 100);
+        })
     );
+
+    // Store dragging state for click handler
+    this.dragging = () => dragging;
   }
 
   /**
@@ -592,6 +609,9 @@ class ASN1GraphViewer extends HTMLElement {
     const overlay = this.shadowRoot.getElementById("modalOverlay");
     const modalBody = this.shadowRoot.getElementById("modalBody");
 
+    const hasChildren = nodeData.data.children && nodeData.data.children.length > 0;
+    const hasProperties = nodeData.data.properties && nodeData.data.properties.length > 0;
+
     // Build modal content
     let html = `
       <div class="field-group">
@@ -604,22 +624,49 @@ class ASN1GraphViewer extends HTMLElement {
       </div>
     `;
 
-    // Add editable properties
-    nodeData.data.properties.forEach((prop, index) => {
+    // Show info about children if this node has them
+    if (hasChildren) {
       html += `
         <div class="field-group">
-          <div class="field-label">${prop.key}</div>
-          <textarea class="field-input" data-prop-index="${index}">${prop.fullValue || prop.value}</textarea>
+          <div class="field-label">Child Nodes</div>
+          <div class="field-value" style="color: #666; font-style: italic;">
+            This node has ${nodeData.data.children.length} child node(s).
+            Only this node's properties can be edited here.
+          </div>
         </div>
       `;
-    });
+    }
 
-    // Add raw data display
-    if (nodeData.data.rawData) {
+    // Add editable properties (only for this node, not children)
+    if (hasProperties) {
+      html += `<div class="field-label" style="margin-top: 16px;">Editable Properties (This Node Only)</div>`;
+      nodeData.data.properties.forEach((prop, index) => {
+        html += `
+          <div class="field-group">
+            <div class="field-label">${prop.key}</div>
+            <textarea class="field-input" data-prop-index="${index}">${prop.fullValue || prop.value}</textarea>
+          </div>
+        `;
+      });
+    } else {
       html += `
         <div class="field-group">
-          <div class="field-label">Raw Data (JSON)</div>
-          <textarea class="field-input" readonly style="min-height: 150px;">${JSON.stringify(nodeData.data.rawData, null, 2)}</textarea>
+          <div class="field-value" style="color: #999; font-style: italic;">
+            This node has no editable properties.
+          </div>
+        </div>
+      `;
+    }
+
+    // Add raw data display (excluding 'sub' array to show only this node's data)
+    if (nodeData.data.rawData) {
+      const dataToShow = {...nodeData.data.rawData};
+      delete dataToShow.sub; // Don't show child nodes in raw data
+
+      html += `
+        <div class="field-group">
+          <div class="field-label">Raw Data (This Node Only)</div>
+          <textarea class="field-input" readonly style="min-height: 100px;">${JSON.stringify(dataToShow, null, 2)}</textarea>
         </div>
       `;
     }
@@ -627,8 +674,8 @@ class ASN1GraphViewer extends HTMLElement {
     // Add action buttons
     html += `
       <div class="modal-actions">
-        <button class="btn btn-secondary" id="cancelEdit">Cancel</button>
-        <button class="btn btn-primary" id="saveEdit">Save Changes</button>
+        <button class="btn btn-secondary" id="cancelEdit">Close</button>
+        ${hasProperties ? '<button class="btn btn-primary" id="saveEdit">Save Changes</button>' : ''}
       </div>
     `;
 
@@ -644,9 +691,12 @@ class ASN1GraphViewer extends HTMLElement {
       this.closeEditModal();
     });
 
-    this.shadowRoot.getElementById("saveEdit").addEventListener("click", () => {
-      self.saveNodeEdits(nodeData);
-    });
+    const saveBtn = this.shadowRoot.getElementById("saveEdit");
+    if (saveBtn) {
+      saveBtn.addEventListener("click", () => {
+        self.saveNodeEdits(nodeData);
+      });
+    }
   }
 
   /**
@@ -656,27 +706,37 @@ class ASN1GraphViewer extends HTMLElement {
     const modalBody = this.shadowRoot.getElementById("modalBody");
     const inputs = modalBody.querySelectorAll("textarea[data-prop-index]");
 
+    // Only update properties that belong to THIS node, not children
     inputs.forEach((input) => {
       const index = parseInt(input.dataset.propIndex);
       const newValue = input.value;
-      nodeData.data.properties[index].value = this.truncate(newValue);
-      nodeData.data.properties[index].fullValue = newValue;
+      const property = nodeData.data.properties[index];
 
-      // Update raw data if it exists
-      if (nodeData.data.rawData) {
-        const key = nodeData.data.properties[index].key;
-        if (nodeData.data.rawData[key] !== undefined) {
+      // Update the hierarchy node data
+      property.value = this.truncate(newValue);
+      property.fullValue = newValue;
+
+      // Update the raw data object (this is a reference to the original data)
+      if (nodeData.data.rawData && typeof nodeData.data.rawData === 'object') {
+        const key = property.key;
+        // Only update if this key exists directly on this node's data
+        // Don't update if it's part of a child node (sub array)
+        if (nodeData.data.rawData.hasOwnProperty(key) && key !== 'sub') {
           nodeData.data.rawData[key] = newValue;
         }
       }
     });
 
-    // Re-render the graph
+    // Re-render only this branch of the tree to avoid affecting other nodes
     this.renderJson(this.data);
 
     // Emit event for external listeners
     this.dispatchEvent(new CustomEvent("nodeEdited", {
-      detail: { node: nodeData, data: this.data },
+      detail: {
+        node: nodeData.data,
+        path: nodeData.data.path,
+        data: this.data
+      },
       bubbles: true,
       composed: true
     }));
