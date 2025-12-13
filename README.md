@@ -15,6 +15,7 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - 🔍 **Search & filter**: Real-time search bar to find nodes
 - ✏️ **Editable nodes**: Click any node to view and edit its properties
 - 🔧 **Auto-length calculation**: Length field updates automatically when content is edited
+- ⚙️ **Configurable display**: Toggle edge labels and adjust node spacing with slider controls
 
 ## Live Demo
 
@@ -179,6 +180,8 @@ The main graph visualization component.
 #### Methods
 
 - `setData(data)` - Set the ASN.1 data to visualize
+- `setEdgeLabels(show)` - Toggle edge label visibility (boolean)
+- `setSpacing(nodeSep, levelSep)` - Set node spacing (vertical and horizontal)
 - `clear()` - Clear the current graph
 - `exportSVG()` - Export the graph as SVG string
 - `handleResize()` - Re-render with new dimensions
@@ -263,6 +266,21 @@ Nodes display only structural information (type, length, name) to keep the graph
 When you save changes:
 - The graph automatically re-renders with updated values
 - If you edit the "content" field, the "length" field is automatically recalculated based on the byte length of the new content
+
+### Display Settings
+
+The control panel includes display settings to customize the graph visualization:
+
+**Edge Labels**
+- Toggle edge labels on/off with the checkbox
+- Edge labels show the relationship names between nodes
+- Default: Hidden (for cleaner visualization)
+
+**Node Spacing**
+- Adjust spacing between nodes using the slider
+- Range: 40-200 pixels
+- Default: 80 pixels
+- Changes apply in real-time
 
 ## Features in Detail
 

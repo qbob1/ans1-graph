@@ -375,6 +375,16 @@
         }, 100);
       });
 
+      // Listen for edge labels toggle
+      controlPanel.addEventListener("edgeLabelsChanged", (event) => {
+        graphViewer.setEdgeLabels(event.detail.show);
+      });
+
+      // Listen for spacing changes
+      controlPanel.addEventListener("spacingChanged", (event) => {
+        graphViewer.setSpacing(event.detail.spacing, event.detail.spacing * 2.5);
+      });
+
       // Handle window resize
       let resizeTimeout;
       window.addEventListener("resize", () => {

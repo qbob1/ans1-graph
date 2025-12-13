@@ -11,6 +11,9 @@ class ASN1GraphViewer extends HTMLElement {
     this.svg = null;
     this.g = null;
     this.graphOptions = null;
+    this.showEdgeLabels = false; // Default: hide edge labels
+    this.nodeSeparation = 80; // Default vertical spacing
+    this.levelSeparation = 200; // Default horizontal spacing
   }
 
   connectedCallback() {
@@ -251,8 +254,8 @@ class ASN1GraphViewer extends HTMLElement {
     this.graphOptions = {
       width: parseInt(width),
       height: parseInt(height),
-      levelSeparation: 200, // Horizontal spacing
-      nodeSeparation: 80,   // Vertical spacing
+      levelSeparation: this.levelSeparation, // Horizontal spacing
+      nodeSeparation: this.nodeSeparation,   // Vertical spacing
     };
 
     // Search functionality
@@ -304,6 +307,36 @@ class ASN1GraphViewer extends HTMLElement {
     this.data = data;
     if (this.svg && this.g) {
       this.renderJson(data);
+    }
+  }
+
+  /**
+   * Set edge label visibility
+   * @param {boolean} show - Whether to show edge labels
+   */
+  setEdgeLabels(show) {
+    this.showEdgeLabels = show;
+    if (this.data) {
+      this.renderJson(this.data);
+    }
+  }
+
+  /**
+   * Set node spacing
+   * @param {number} nodeSep - Vertical spacing between nodes
+   * @param {number} levelSep - Horizontal spacing between levels
+   */
+  setSpacing(nodeSep, levelSep) {
+    this.nodeSeparation = nodeSep || this.nodeSeparation;
+    this.levelSeparation = levelSep || this.levelSeparation;
+
+    if (this.graphOptions) {
+      this.graphOptions.nodeSeparation = this.nodeSeparation;
+      this.graphOptions.levelSeparation = this.levelSeparation;
+    }
+
+    if (this.data) {
+      this.renderJson(this.data);
     }
   }
 
@@ -456,23 +489,25 @@ class ASN1GraphViewer extends HTMLElement {
       .attr("stroke", "#999")
       .attr("stroke-width", 1.5);
 
-    // Draw link labels
-    this.g
-      .selectAll(".link-label")
-      .data(this.root.links())
-      .enter()
-      .append("text")
-      .attr("class", "link-label")
-      .attr("x", (d) => (d.source.y + d.target.y) / 2)  // Swapped
-      .attr("y", (d) => d.target.x - 10)                // Swapped and offset
-      .attr("text-anchor", "middle")
-      .attr("font-size", "10px")
-      .attr("fill", "#666")
-      .text((d) =>
-        d.target.data.name !== d.target.parent.data.name
-          ? d.target.data.name.split(" ")[0]
-          : ""
-      );
+    // Draw link labels (if enabled)
+    if (this.showEdgeLabels) {
+      this.g
+        .selectAll(".link-label")
+        .data(this.root.links())
+        .enter()
+        .append("text")
+        .attr("class", "link-label")
+        .attr("x", (d) => (d.source.y + d.target.y) / 2)  // Swapped
+        .attr("y", (d) => d.target.x - 10)                // Swapped and offset
+        .attr("text-anchor", "middle")
+        .attr("font-size", "10px")
+        .attr("fill", "#666")
+        .text((d) =>
+          d.target.data.name !== d.target.parent.data.name
+            ? d.target.data.name.split(" ")[0]
+            : ""
+        );
+    }
 
     // Draw nodes
     const nodes = this.g

@@ -244,6 +244,70 @@ class ASN1ControlPanel extends HTMLElement {
         .panel-content::-webkit-scrollbar-thumb:hover {
           background: #555;
         }
+
+        /* Display Settings */
+        .control-row {
+          margin-bottom: 16px;
+        }
+
+        .control-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+          color: #333;
+          margin-bottom: 8px;
+        }
+
+        .control-label input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+        }
+
+        .slider-container {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .slider {
+          flex: 1;
+          height: 6px;
+          border-radius: 3px;
+          background: #e0e0e0;
+          outline: none;
+          -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .slider-value {
+          min-width: 40px;
+          text-align: right;
+          font-size: 13px;
+          color: #667eea;
+          font-weight: 600;
+        }
       </style>
 
       <button class="toggle-btn" id="toggleBtn" title="Open Control Panel">☰</button>
@@ -259,6 +323,27 @@ class ASN1ControlPanel extends HTMLElement {
             <div class="section-title">Hex Input</div>
             <textarea id="hexInput" placeholder="Paste your hex-encoded ASN.1 data here..."></textarea>
             <button class="btn-primary" id="decodeBtn">🔍 Decode</button>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Display Settings</div>
+
+            <div class="control-row">
+              <label class="control-label">
+                <input type="checkbox" id="edgeLabelsCheckbox">
+                Show Edge Labels
+              </label>
+            </div>
+
+            <div class="control-row">
+              <label class="control-label">
+                Node Spacing
+              </label>
+              <div class="slider-container">
+                <input type="range" id="spacingSlider" class="slider" min="40" max="200" value="80">
+                <span class="slider-value" id="spacingValue">80</span>
+              </div>
+            </div>
           </div>
 
           <div class="section">
@@ -282,6 +367,9 @@ class ASN1ControlPanel extends HTMLElement {
     const decodeBtn = this.shadowRoot.getElementById("decodeBtn");
     const saveLabelsBtn = this.shadowRoot.getElementById("saveLabels");
     const clearLabelsBtn = this.shadowRoot.getElementById("clearLabels");
+    const edgeLabelsCheckbox = this.shadowRoot.getElementById("edgeLabelsCheckbox");
+    const spacingSlider = this.shadowRoot.getElementById("spacingSlider");
+    const spacingValue = this.shadowRoot.getElementById("spacingValue");
 
     toggleBtn.addEventListener("click", () => {
       this.isOpen = !this.isOpen;
@@ -293,6 +381,27 @@ class ASN1ControlPanel extends HTMLElement {
     decodeBtn.addEventListener("click", () => this.decode());
     saveLabelsBtn.addEventListener("click", () => this.saveLabels());
     clearLabelsBtn.addEventListener("click", () => this.clearLabels());
+
+    // Edge labels checkbox
+    edgeLabelsCheckbox.addEventListener("change", (e) => {
+      this.dispatchEvent(new CustomEvent("edgeLabelsChanged", {
+        detail: { show: e.target.checked },
+        bubbles: true,
+        composed: true
+      }));
+    });
+
+    // Spacing slider
+    spacingSlider.addEventListener("input", (e) => {
+      const value = e.target.value;
+      spacingValue.textContent = value;
+
+      this.dispatchEvent(new CustomEvent("spacingChanged", {
+        detail: { spacing: parseInt(value) },
+        bubbles: true,
+        composed: true
+      }));
+    });
   }
 
   showStatus(message, type = "success") {
