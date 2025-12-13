@@ -10,6 +10,24 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - 📱 **Responsive**: Full-screen graph with floating control panel
 - 🎯 **Clean popup UI**: All controls in a beautiful floating popup menu
 - ⌨️ **Keyboard shortcuts**: Quick access to controls
+- 🚀 **Quick samples**: Built-in examples to get started instantly
+
+## Live Demo
+
+Simply open `index.html` in your browser to try it out!
+
+```bash
+# Clone and open
+git clone <repo-url>
+cd ans1-graph
+open index.html
+```
+
+The interface includes:
+- Welcome screen with quick sample buttons
+- Three built-in examples (simple, nested, custom labels)
+- Keyboard shortcuts guide
+- Full-screen interactive graph
 
 ## Quick Start
 

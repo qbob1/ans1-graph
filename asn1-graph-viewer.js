@@ -139,13 +139,24 @@ class ASN1GraphViewer extends HTMLElement {
         node.name = name;
       }
 
-      // Separate properties
+      // Separate properties and children
       Object.entries(obj).forEach(([key, value]) => {
-        if (value === null) {
+        // Special handling for ASN.1 'sub' array - these are children nodes
+        if (key === "sub" && Array.isArray(value)) {
+          value.forEach((child, index) => {
+            node.children.push(
+              this.jsonToHierarchy(child, `[${index}]`, `${path}.sub[${index}]`)
+            );
+          });
+        } else if (value === null) {
           node.properties.push({ key, value: "null" });
         } else if (typeof value !== "object") {
-          node.properties.push({ key, value: String(value) });
-        } else {
+          // Skip internal properties that aren't useful for display
+          if (!["tagClass", "tagNumber", "tagConstructed", "subCount"].includes(key)) {
+            node.properties.push({ key, value: String(value) });
+          }
+        } else if (!Array.isArray(value)) {
+          // Regular object property (not 'sub' array)
           node.children.push(
             this.jsonToHierarchy(value, key, `${path}.${key}`)
           );
