@@ -59,68 +59,46 @@
         graphViewer.handleResize();
       });
 
-      // Demo: Load sample data
-      window.loadSampleData = function() {
-        const sampleData = {
-          type: "SEQUENCE",
-          tagClass: 0,
-          tagNumber: 16,
-          tagConstructed: true,
-          length: 100,
-          subCount: 3,
-          sub: [
-            {
-              type: "INTEGER",
-              tagClass: 0,
-              tagNumber: 2,
-              tagConstructed: false,
-              length: 1,
-              content: "42"
-            },
-            {
-              type: "OCTET STRING",
-              tagClass: 0,
-              tagNumber: 4,
-              tagConstructed: false,
-              length: 11,
-              content: "Hello World"
-            },
-            {
-              type: "SEQUENCE",
-              tagClass: 0,
-              tagNumber: 16,
-              tagConstructed: true,
-              length: 50,
-              subCount: 2,
-              sub: [
-                {
-                  type: "UTF8String",
-                  tagClass: 0,
-                  tagNumber: 12,
-                  tagConstructed: false,
-                  length: 10,
-                  content: "Test User"
-                },
-                {
-                  type: "UTCTime",
-                  tagClass: 0,
-                  tagNumber: 23,
-                  tagConstructed: false,
-                  length: 13,
-                  content: "231213120000Z"
-                }
-              ]
-            }
-          ]
-        };
-
-        graphViewer.setData(sampleData);
-        console.log("Sample data loaded!");
+      // Sample hex data examples
+      const sampleHexData = {
+        simple: "3024020142040B48656C6C6F20576F726C640C0A546573742055736572",
+        customLabels: "30818AA00302010AA1160414757365722D6964656E746966696572A203020104A31A301802010C0413757365722D617474726962757465A4250C23546869732069732061206C6F6E6720757365722064657363726970746F7220737472696E67A52A30280C0A4669727374204E616D650C094C617374204E616D650C0F757365724064796E616D69632E636F6D",
+        nested: "3051300F020164040568656C6C6F0201323014020201F4040A746573742076616C7565170D3233313231333132303030305A301E301C020102041654686973206973206120746573742076616C7565"
       };
 
+      // Function to load hex data into control panel
+      window.loadHexSample = function(sampleName = 'simple') {
+        const hexData = sampleHexData[sampleName];
+        if (!hexData) {
+          console.error("Unknown sample:", sampleName);
+          console.log("Available samples:", Object.keys(sampleHexData));
+          return;
+        }
+
+        // Get the control panel and set the hex input
+        const hexInput = controlPanel.shadowRoot.getElementById('hexInput');
+        if (hexInput) {
+          hexInput.value = hexData;
+          console.log(`Loaded ${sampleName} sample into hex input`);
+          console.log("Now click the Decode button in the control panel!");
+        } else {
+          console.error("Could not find hex input field");
+        }
+      };
+
+      // Auto-load simple sample on page load
+      setTimeout(() => {
+        loadHexSample('simple');
+        console.log("\n📊 Sample data loaded into control panel!");
+        console.log("Open the control panel (Ctrl+K or click ⚙️) and click 'Decode'\n");
+      }, 500);
+
       console.log("ASN.1 Graph Viewer Example Ready!");
-      console.log("Try: loadSampleData() to see a demo");
-      console.log("Or paste hex data in the control panel (Ctrl+K)");
+      console.log("\nAvailable samples:");
+      console.log("  loadHexSample('simple')        - Basic SEQUENCE with INTEGER, OCTET STRING, UTF8String");
+      console.log("  loadHexSample('customLabels')  - Test custom labels with context-specific tags");
+      console.log("  loadHexSample('nested')        - Nested sequences");
+      console.log("\nOr paste your own hex data in the control panel (Ctrl+K)");
     </script>
   </body>
 </html>
