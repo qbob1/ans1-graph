@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>JSON Graph Renderer</title>
+    <style>
+      svg {
+        border: 1px solid #ccc;
+        width: 100%;
+        height: 600px;
+      }
+      .node rect {
+        fill: #4caf50;
+        stroke: #333;
+        stroke-width: 1;
+        rx: 4;
+        ry: 4;
+      }
+      .node text {
+        fill: #fff;
+        font-family: sans-serif;
+        font-size: 12px;
+        pointer-events: none;
+      }
+      .edge {
+        stroke: #999;
+        stroke-width: 2;
+        marker-end: url(#arrow);
+      }
+    </style>
+  </head>
+  <body>
+    <textarea id="json-input" style="width: 100%; height: 120px">
+{
+  "name": "Alice",
+  "age": 30,
+  "pets": ["cat", "dog"],
+  "address": { "city": "NY", "zip": 10001 }
+}
+</textarea
+    >
+    <button id="render-btn">Render Graph</button>
+
+    <svg id="graph"></svg>
+
+    <script type="module">
+      /* ---- Self-contained parser (simplified) ---- */
+      export const parser = (json) => {
+        let obj;
+        try {
+          obj = JSON.parse(json);
+        } catch {
+          return { nodes: [], edges: [] };
+        }
+        const nodes = [],
+          edges = [];
+        let nodeId = 1,
+          edgeId = 1;
+
+        const calculateNodeSize = (value) => {
+          const text =
+            typeof value === "string" ? value : JSON.stringify(value);
+          return {
+            width: Math.min(300, 8 * text.length + 20),
+            height: 20 + Math.floor(text.length / 20) * 10,
+          };
+        };
+
+        function traverse(o, parentId, key = null) {
+          const id = String(nodeId++);
+          const type = Array.isArray(o)
+            ? "array"
+            : typeof o === "object" && o !== null
+            ? "object"
+            : typeof o;
+          if (parentId)
+            edges.push({
+              id: String(edgeId++),
+              from: parentId,
+              to: id,
+              text: key,
+            });
+
+          const text = [];
+          if (type === "array") {
+            o.forEach((child) => traverse(child, id, null));
+            text.push({ key, value: `[${o.length} items]`, type });
+          } else if (type === "object") {
+            Object.entries(o).forEach(([k, v]) => {
+              const childId = traverse(v, id, k);
+              text.push({
+                key: k,
+                value: v,
+                type: typeof v === "object" ? typeof v : v,
+                to: [childId],
+              });
+            });
+          } else {
+            text.push({ key, value: o, type });
+          }
+
+          const { width, height } = calculateNodeSize(
+            text.length === 1 && text[0].key === null ? text[0].value : text
+          );
+          nodes.push({
+            id,
+            text:
+              text.length === 1 && text[0].key === null ? text[0].value : text,
+            width,
+            height,
+            path: [],
+            parentKey: key,
+            parentType: type,
+          });
+          return id;
+        }
+
+        traverse(obj);
+        return { nodes, edges };
+      };
+
+      /* ---- Graph rendering ---- */
+      const svg = document.getElementById("graph");
+      const btn = document.getElementById("render-btn");
+      btn.addEventListener("click", () => {
+        const json = document.getElementById("json-input").value;
+        const { nodes, edges } = parser(json);
+        svg.innerHTML = ""; // clear previous
+
+        // Arrow marker
+        const defs = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "defs"
+        );
+        defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#999"></path>
+  </marker>`;
+        svg.appendChild(defs);
+
+        // Layout nodes vertically
+        let y = 20;
+        const nodePositions = {};
+        nodes.forEach((n) => {
+          nodePositions[n.id] = { x: 50, y };
+          y += n.height + 20;
+        });
+
+        // Draw edges
+        edges.forEach((e) => {
+          const from = nodePositions[e.from];
+          const to = nodePositions[e.to];
+          const line = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "line"
+          );
+          line.setAttribute("x1", from.x + 100);
+          line.setAttribute("y1", from.y + 10);
+          line.setAttribute("x2", to.x);
+          line.setAttribute("y2", to.y + 10);
+          line.setAttribute("class", "edge");
+          svg.appendChild(line);
+        });
+
+        // Draw nodes
+        nodes.forEach((n) => {
+          const pos = nodePositions[n.id];
+          const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          g.setAttribute("class", "node");
+          g.setAttribute("transform", `translate(${pos.x}, ${pos.y})`);
+
+          const rect = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          rect.setAttribute("width", n.width);
+          rect.setAttribute("height", n.height);
+          g.appendChild(rect);
+
+          const text = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          text.setAttribute("x", 5);
+          text.setAttribute("y", 15);
+          text.textContent =
+            typeof n.text === "string" ? n.text : JSON.stringify(n.text);
+          g.appendChild(text);
+
+          svg.appendChild(g);
+        });
+      });
+    </script>
+  </body>
+</html>
