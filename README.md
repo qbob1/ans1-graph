@@ -5,16 +5,16 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 ## Features
 
 - ✨ **Framework-agnostic**: Use in React, Vue, Angular, or vanilla HTML
-- 🎨 **Interactive D3 visualization**: Zoom, pan, and drag nodes
+- 🎨 **Interactive D3 visualization**: Zoom and pan the graph
 - 🏷️ **Custom label management**: Define custom names for ASN.1 tags
-- 📱 **Responsive**: Full-screen graph with floating control panel
-- 🎯 **Clean popup UI**: All controls in a beautiful floating popup menu
+- 📱 **Responsive**: Full-screen graph with left-side drawer panel
+- 🎯 **Clean drawer UI**: All controls in a beautiful slide-out drawer
 - ⌨️ **Keyboard shortcuts**: Quick access to controls
 - 🚀 **Quick samples**: Built-in examples to get started instantly
 - ➡️ **Horizontal layout**: Graph flows left-to-right for better readability
 - 🔍 **Search & filter**: Real-time search bar to find nodes
 - ✏️ **Editable nodes**: Click any node to view and edit its properties
-- 📏 **Smart truncation**: Long content automatically truncated with ellipsis
+- 🔧 **Auto-length calculation**: Length field updates automatically when content is edited
 
 ## Live Demo
 
@@ -211,7 +211,7 @@ const svg = viewer.exportSVG();
 
 ### `<asn1-control-panel>`
 
-Floating control panel for decoding ASN.1 data and managing labels.
+Left-side drawer panel for decoding ASN.1 data and managing labels.
 
 #### Events
 
@@ -236,12 +236,11 @@ panel.addEventListener('decoded', (event) => {
 
 - **Zoom**: Scroll wheel or pinch gesture
 - **Pan**: Click and drag on background
-- **Move nodes**: Click and drag individual nodes
 - **Search nodes**: Type in the search bar to filter nodes
 - **Edit nodes**: Click on any node to open the edit modal
   - View node type, path, and all properties
   - Edit property values in textarea fields
-  - View raw JSON data
+  - View raw JSON data (this node only, excluding children)
   - Save or cancel changes
 
 ### Search Feature
@@ -254,14 +253,16 @@ The search bar at the top-left allows you to filter nodes in real-time:
 
 ### Edit Feature
 
-Click any node to open an edit popup with:
+Nodes display only structural information (type, length, name) to keep the graph clean. Click any node to open an edit popup with:
 - **Node Type**: The ASN.1 type name
 - **Path**: The hierarchical path to the node
-- **Editable Fields**: Textarea for each property value
+- **Editable Fields**: Textarea for each property value (including content)
 - **Raw Data**: Read-only JSON view of the complete node data
 - **Actions**: Save changes or cancel
 
-When you save changes, the graph automatically re-renders with the updated values.
+When you save changes:
+- The graph automatically re-renders with updated values
+- If you edit the "content" field, the "length" field is automatically recalculated based on the byte length of the new content
 
 ## Features in Detail
 

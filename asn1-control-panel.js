@@ -23,19 +23,23 @@ class ASN1ControlPanel extends HTMLElement {
       <style>
         :host {
           position: fixed;
-          top: 20px;
-          right: 20px;
+          top: 0;
+          left: 0;
+          height: 100%;
           z-index: 1000;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         .toggle-btn {
-          background: #4CAF50;
+          position: fixed;
+          top: 20px;
+          left: 20px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: white;
           border: none;
-          border-radius: 50%;
-          width: 60px;
-          height: 60px;
+          border-radius: 8px;
+          width: 50px;
+          height: 50px;
           font-size: 24px;
           cursor: pointer;
           box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -43,32 +47,30 @@ class ASN1ControlPanel extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
+          z-index: 1001;
         }
 
         .toggle-btn:hover {
-          transform: scale(1.1);
+          transform: scale(1.05);
           box-shadow: 0 6px 16px rgba(0,0,0,0.4);
         }
 
         .panel {
-          position: absolute;
-          top: 70px;
-          right: 0;
+          position: fixed;
+          top: 0;
+          left: 0;
           width: 400px;
-          max-height: 80vh;
+          height: 100%;
           background: white;
-          border-radius: 12px;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+          box-shadow: 4px 0 24px rgba(0,0,0,0.15);
           overflow: hidden;
-          transform: translateY(-20px);
-          opacity: 0;
+          transform: translateX(-100%);
+          transition: transform 0.3s ease;
           pointer-events: none;
-          transition: all 0.3s ease;
         }
 
         .panel.open {
-          transform: translateY(0);
-          opacity: 1;
+          transform: translateX(0);
           pointer-events: all;
         }
 
@@ -81,7 +83,7 @@ class ASN1ControlPanel extends HTMLElement {
         }
 
         .panel-content {
-          max-height: calc(80vh - 70px);
+          height: calc(100% - 70px);
           overflow-y: auto;
           padding: 20px;
         }
@@ -244,7 +246,7 @@ class ASN1ControlPanel extends HTMLElement {
         }
       </style>
 
-      <button class="toggle-btn" id="toggleBtn" title="Open Control Panel">⚙️</button>
+      <button class="toggle-btn" id="toggleBtn" title="Open Control Panel">☰</button>
 
       <div class="panel" id="panel">
         <div class="panel-header">
@@ -284,7 +286,7 @@ class ASN1ControlPanel extends HTMLElement {
     toggleBtn.addEventListener("click", () => {
       this.isOpen = !this.isOpen;
       panel.classList.toggle("open", this.isOpen);
-      toggleBtn.textContent = this.isOpen ? "✕" : "⚙️";
+      toggleBtn.textContent = this.isOpen ? "✕" : "☰";
       toggleBtn.title = this.isOpen ? "Close Control Panel" : "Open Control Panel";
     });
 

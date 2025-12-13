@@ -32,7 +32,7 @@ class ASN1GraphViewer extends HTMLElement {
         #searchBar {
           position: absolute;
           top: 20px;
-          left: 20px;
+          left: 90px;
           z-index: 100;
           padding: 10px 16px;
           border: 2px solid #667eea;
@@ -308,12 +308,40 @@ class ASN1GraphViewer extends HTMLElement {
   }
 
   /**
-   * Truncate long strings
+   * Update URL with current node path
    */
-  truncate(str, maxLength = 50) {
-    if (typeof str !== 'string') return str;
-    if (str.length <= maxLength) return str;
-    return str.substring(0, maxLength) + '...';
+  updateURLState(nodePath) {
+    const url = new URL(window.location);
+    if (nodePath) {
+      url.searchParams.set('node', encodeURIComponent(nodePath));
+    } else {
+      url.searchParams.delete('node');
+    }
+    window.history.pushState({}, '', url);
+  }
+
+  /**
+   * Get node path from URL
+   */
+  getNodePathFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    const nodePath = params.get('node');
+    return nodePath ? decodeURIComponent(nodePath) : null;
+  }
+
+  /**
+   * Find node by path
+   */
+  findNodeByPath(path) {
+    if (!this.root) return null;
+
+    let foundNode = null;
+    this.root.each((node) => {
+      if (node.data.path === path) {
+        foundNode = node;
+      }
+    });
+    return foundNode;
   }
 
   /**
@@ -338,11 +366,8 @@ class ASN1GraphViewer extends HTMLElement {
             this.jsonToHierarchy(item, `[${index}]`, `${path}[${index}]`)
           );
         } else {
-          node.properties.push({
-            key: `[${index}]`,
-            value: this.truncate(String(item)),
-            fullValue: String(item)
-          });
+          // Omit content - don't display primitive values
+          // Only structural information is shown
         }
       });
     } else if (typeof obj === "object" && obj !== null) {
@@ -365,14 +390,15 @@ class ASN1GraphViewer extends HTMLElement {
             );
           });
         } else if (value === null) {
-          node.properties.push({ key, value: "null", fullValue: "null" });
+          // Skip null values
         } else if (typeof value !== "object") {
-          // Skip internal properties that aren't useful for display
-          if (!["tagClass", "tagNumber", "tagConstructed", "subCount"].includes(key)) {
+          // Skip content and internal properties - only show structural information
+          // Display only: type, length, name
+          if (["type", "length", "name"].includes(key)) {
             const strValue = String(value);
             node.properties.push({
               key,
-              value: this.truncate(strValue),
+              value: strValue,
               fullValue: strValue
             });
           }
@@ -486,10 +512,7 @@ class ASN1GraphViewer extends HTMLElement {
         .attr("stroke-width", 2)
         .on("click", function(event) {
           event.stopPropagation();
-          // Only open modal if not dragging
-          if (!self.dragging || !self.dragging()) {
-            self.showEditModal(d);
-          }
+          self.showEditModal(d);
         });
 
       // Add title
@@ -531,45 +554,7 @@ class ASN1GraphViewer extends HTMLElement {
       }
     });
 
-    // Add drag behavior for horizontal layout
-    // Track if dragging occurred to prevent click event after drag
-    let dragging = false;
-
-    nodes.call(
-      d3.drag()
-        .on("start", function(event, d) {
-          dragging = false;
-          d3.select(this).raise();
-        })
-        .on("drag", function(event, d) {
-          dragging = true;
-          d.x = event.y;  // Swapped
-          d.y = event.x;  // Swapped
-          d3.select(this).attr("transform", `translate(${d.y}, ${d.x})`);
-
-          // Update links for horizontal layout
-          self.g.selectAll(".link").attr(
-            "d",
-            d3.linkHorizontal()
-              .x((d) => d.y)
-              .y((d) => d.x)
-          );
-
-          self.g
-            .selectAll(".link-label")
-            .attr("x", (d) => (d.source.y + d.target.y) / 2)
-            .attr("y", (d) => d.target.x - 10);
-        })
-        .on("end", function(event, d) {
-          // Reset dragging flag after a short delay
-          setTimeout(() => {
-            dragging = false;
-          }, 100);
-        })
-    );
-
-    // Store dragging state for click handler
-    this.dragging = () => dragging;
+    // Nodes are now locked in place - no drag behavior
   }
 
   /**
@@ -637,14 +622,25 @@ class ASN1GraphViewer extends HTMLElement {
       `;
     }
 
-    // Add editable properties (only for this node, not children)
-    if (hasProperties) {
+    // Add editable properties from rawData (only for this node, not children)
+    const editableProps = [];
+    if (nodeData.data.rawData && typeof nodeData.data.rawData === 'object') {
+      // Get all properties from rawData except structural ones
+      const excludeKeys = ['sub', 'tagClass', 'tagNumber', 'tagConstructed', 'subCount'];
+      Object.entries(nodeData.data.rawData).forEach(([key, value]) => {
+        if (!excludeKeys.includes(key) && typeof value !== 'object') {
+          editableProps.push({ key, value: String(value) });
+        }
+      });
+    }
+
+    if (editableProps.length > 0) {
       html += `<div class="field-label" style="margin-top: 16px;">Editable Properties (This Node Only)</div>`;
-      nodeData.data.properties.forEach((prop, index) => {
+      editableProps.forEach((prop, index) => {
         html += `
           <div class="field-group">
             <div class="field-label">${prop.key}</div>
-            <textarea class="field-input" data-prop-index="${index}">${prop.fullValue || prop.value}</textarea>
+            <textarea class="field-input" data-prop-key="${prop.key}">${prop.value}</textarea>
           </div>
         `;
       });
@@ -675,7 +671,7 @@ class ASN1GraphViewer extends HTMLElement {
     html += `
       <div class="modal-actions">
         <button class="btn btn-secondary" id="cancelEdit">Close</button>
-        ${hasProperties ? '<button class="btn btn-primary" id="saveEdit">Save Changes</button>' : ''}
+        ${editableProps.length > 0 ? '<button class="btn btn-primary" id="saveEdit">Save Changes</button>' : ''}
       </div>
     `;
 
@@ -704,28 +700,63 @@ class ASN1GraphViewer extends HTMLElement {
    */
   saveNodeEdits(nodeData) {
     const modalBody = this.shadowRoot.getElementById("modalBody");
-    const inputs = modalBody.querySelectorAll("textarea[data-prop-index]");
+    const inputs = modalBody.querySelectorAll("textarea[data-prop-key]");
+
+    let contentChanged = false;
+    let newContentValue = null;
 
     // Only update properties that belong to THIS node, not children
     inputs.forEach((input) => {
-      const index = parseInt(input.dataset.propIndex);
+      const key = input.dataset.propKey;
       const newValue = input.value;
-      const property = nodeData.data.properties[index];
-
-      // Update the hierarchy node data
-      property.value = this.truncate(newValue);
-      property.fullValue = newValue;
 
       // Update the raw data object (this is a reference to the original data)
       if (nodeData.data.rawData && typeof nodeData.data.rawData === 'object') {
-        const key = property.key;
         // Only update if this key exists directly on this node's data
         // Don't update if it's part of a child node (sub array)
         if (nodeData.data.rawData.hasOwnProperty(key) && key !== 'sub') {
           nodeData.data.rawData[key] = newValue;
+
+          // Track if content was changed
+          if (key === 'content') {
+            contentChanged = true;
+            newContentValue = newValue;
+          }
         }
       }
+
+      // Update the properties array if this key exists there
+      const property = nodeData.data.properties.find(p => p.key === key);
+      if (property) {
+        property.value = newValue;
+        property.fullValue = newValue;
+      }
     });
+
+    // If content changed, update the length field
+    if (contentChanged && nodeData.data.rawData) {
+      // Calculate new length based on content
+      // For ASN.1, this is typically the byte length of the content
+      if (typeof newContentValue === 'string') {
+        // Calculate byte length (UTF-8 encoding)
+        const byteLength = new TextEncoder().encode(newContentValue).length;
+        nodeData.data.rawData.length = byteLength;
+
+        // Update the length in properties if it exists
+        const lengthProp = nodeData.data.properties.find(p => p.key === 'length');
+        if (lengthProp) {
+          lengthProp.value = String(byteLength);
+          lengthProp.fullValue = String(byteLength);
+        } else {
+          // Add length property if it doesn't exist
+          nodeData.data.properties.push({
+            key: 'length',
+            value: String(byteLength),
+            fullValue: String(byteLength)
+          });
+        }
+      }
+    }
 
     // Re-render only this branch of the tree to avoid affecting other nodes
     this.renderJson(this.data);
