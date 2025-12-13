@@ -3,9 +3,6 @@
  * A floating control panel with popup menu for ASN.1 decoding and label management
  */
 
-import { ASN1 } from "https://unpkg.com/@lapo/asn1js@2.0.0/asn1.js";
-import { Hex } from "https://unpkg.com/@lapo/asn1js@2.0.0/hex.js";
-
 class ASN1ControlPanel extends HTMLElement {
   constructor() {
     super();
@@ -315,8 +312,15 @@ class ASN1ControlPanel extends HTMLElement {
       return;
     }
 
+    // Check if ASN1 library is available
+    if (typeof window.ASN1 === 'undefined' || typeof window.Hex === 'undefined') {
+      this.showStatus("ASN.1 library not loaded. Please ensure the page includes the ASN.1 library.", "error");
+      console.error("ASN1 or Hex not found on window object");
+      return;
+    }
+
     try {
-      const bytes = Hex.decode(hex);
+      const bytes = window.Hex.decode(hex);
 
       this.allNodes = [];
       this.unknownTypes = new Set();
@@ -325,7 +329,7 @@ class ASN1ControlPanel extends HTMLElement {
       while (pos < bytes.length) {
         try {
           const remaining = bytes.slice(pos);
-          const node = ASN1.decode(remaining);
+          const node = window.ASN1.decode(remaining);
           this.allNodes.push(node);
           this.collectUnknownTypes(node);
           const nodeEnd = node.posEnd();
@@ -337,6 +341,8 @@ class ASN1ControlPanel extends HTMLElement {
       }
 
       const serialized = this.allNodes.map((n) => this.serializeNode(n));
+
+      console.log("Decoded", this.allNodes.length, "nodes, serialized:", serialized);
 
       // Dispatch event with decoded data
       this.dispatchEvent(new CustomEvent("decoded", {
