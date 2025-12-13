@@ -1,0 +1,279 @@
+# ASN.1 Graph Viewer
+
+A standalone web component for visualizing ASN.1 data structures as interactive D3 graphs. Built with vanilla JavaScript and Web Components, these components can be used in any framework or vanilla HTML.
+
+## Features
+
+- ✨ **Framework-agnostic**: Use in React, Vue, Angular, or vanilla HTML
+- 🎨 **Interactive D3 visualization**: Zoom, pan, and drag nodes
+- 🏷️ **Custom label management**: Define custom names for ASN.1 tags
+- 📱 **Responsive**: Full-screen graph with floating control panel
+- 🎯 **Clean popup UI**: All controls in a beautiful floating popup menu
+- ⌨️ **Keyboard shortcuts**: Quick access to controls
+
+## Quick Start
+
+### Standalone HTML
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ASN.1 Viewer</title>
+  </head>
+  <body>
+    <!-- Graph Viewer (full screen) -->
+    <asn1-graph-viewer id="graphViewer"></asn1-graph-viewer>
+
+    <!-- Floating Control Panel -->
+    <asn1-control-panel id="controlPanel"></asn1-control-panel>
+
+    <!-- Load D3.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+    <!-- Load Web Components -->
+    <script type="module">
+      import { ASN1GraphViewer } from "./asn1-graph-viewer.js";
+      import { ASN1ControlPanel } from "./asn1-control-panel.js";
+
+      const graphViewer = document.getElementById("graphViewer");
+      const controlPanel = document.getElementById("controlPanel");
+
+      // Set dimensions
+      graphViewer.setAttribute("width", window.innerWidth);
+      graphViewer.setAttribute("height", window.innerHeight);
+
+      // Listen for decoded data
+      controlPanel.addEventListener("decoded", (event) => {
+        graphViewer.setData(event.detail.data);
+      });
+    </script>
+  </body>
+</html>
+```
+
+### React
+
+```jsx
+import { useEffect, useRef } from 'react';
+
+function ASN1Viewer() {
+  const graphRef = useRef(null);
+  const controlRef = useRef(null);
+
+  useEffect(() => {
+    // Import components
+    import('./asn1-graph-viewer.js');
+    import('./asn1-control-panel.js');
+
+    // Set dimensions
+    if (graphRef.current) {
+      graphRef.current.setAttribute('width', window.innerWidth);
+      graphRef.current.setAttribute('height', window.innerHeight);
+    }
+
+    // Listen for decoded data
+    const handleDecoded = (event) => {
+      if (graphRef.current) {
+        graphRef.current.setData(event.detail.data);
+      }
+    };
+
+    if (controlRef.current) {
+      controlRef.current.addEventListener('decoded', handleDecoded);
+    }
+
+    return () => {
+      if (controlRef.current) {
+        controlRef.current.removeEventListener('decoded', handleDecoded);
+      }
+    };
+  }, []);
+
+  return (
+    <>
+      <asn1-graph-viewer ref={graphRef} />
+      <asn1-control-panel ref={controlRef} />
+    </>
+  );
+}
+
+export default ASN1Viewer;
+```
+
+### Vue
+
+```vue
+<template>
+  <div>
+    <asn1-graph-viewer ref="graphViewer" />
+    <asn1-control-panel ref="controlPanel" />
+  </div>
+</template>
+
+<script>
+import { onMounted, ref } from 'vue';
+
+export default {
+  setup() {
+    const graphViewer = ref(null);
+    const controlPanel = ref(null);
+
+    onMounted(async () => {
+      // Import components
+      await import('./asn1-graph-viewer.js');
+      await import('./asn1-control-panel.js');
+
+      // Set dimensions
+      graphViewer.value.setAttribute('width', window.innerWidth);
+      graphViewer.value.setAttribute('height', window.innerHeight);
+
+      // Listen for decoded data
+      controlPanel.value.addEventListener('decoded', (event) => {
+        graphViewer.value.setData(event.detail.data);
+      });
+    });
+
+    return {
+      graphViewer,
+      controlPanel
+    };
+  }
+};
+</script>
+```
+
+## Web Components API
+
+### `<asn1-graph-viewer>`
+
+The main graph visualization component.
+
+#### Attributes
+
+- `width` - Graph width in pixels (default: window.innerWidth)
+- `height` - Graph height in pixels (default: window.innerHeight)
+
+#### Methods
+
+- `setData(data)` - Set the ASN.1 data to visualize
+- `clear()` - Clear the current graph
+- `exportSVG()` - Export the graph as SVG string
+- `handleResize()` - Re-render with new dimensions
+
+#### Example
+
+```javascript
+const viewer = document.getElementById('graphViewer');
+viewer.setData(myData);
+const svg = viewer.exportSVG();
+```
+
+### `<asn1-control-panel>`
+
+Floating control panel for decoding ASN.1 data and managing labels.
+
+#### Events
+
+- `decoded` - Fired when ASN.1 data is decoded successfully
+  - `event.detail.data` - The decoded ASN.1 data
+
+#### Example
+
+```javascript
+const panel = document.getElementById('controlPanel');
+panel.addEventListener('decoded', (event) => {
+  console.log('Decoded data:', event.detail.data);
+});
+```
+
+## Keyboard Shortcuts
+
+- `Ctrl/Cmd + K` - Toggle control panel
+- `Escape` - Close control panel
+
+## Graph Interactions
+
+- **Zoom**: Scroll wheel or pinch gesture
+- **Pan**: Click and drag on background
+- **Move nodes**: Click and drag individual nodes
+
+## Features in Detail
+
+### Hex Input
+
+Paste hex-encoded ASN.1 data into the input field and click "Decode" to visualize the structure.
+
+### Custom Labels
+
+ASN.1 tags that aren't standard (context-specific, application, or private tags) can be given custom names:
+
+1. Decode your ASN.1 data
+2. Open the "Custom Labels" section in the control panel
+3. Enter custom names for unlabeled tags
+4. Click "Apply Labels" to update the visualization
+
+### Label Persistence
+
+Custom labels are stored in the control panel component and persist across re-decodes of the same data structure.
+
+## Data Format
+
+The components expect ASN.1 data in the following JSON format:
+
+```json
+{
+  "type": "SEQUENCE",
+  "tagClass": 0,
+  "tagNumber": 16,
+  "tagConstructed": true,
+  "length": 123,
+  "subCount": 2,
+  "sub": [
+    {
+      "type": "INTEGER",
+      "content": "42"
+    },
+    {
+      "type": "OCTET STRING",
+      "content": "Hello"
+    }
+  ]
+}
+```
+
+## Browser Support
+
+- Chrome 53+
+- Firefox 63+
+- Safari 10.1+
+- Edge 79+
+
+Requires support for:
+- Custom Elements v1
+- Shadow DOM v1
+- ES6 Modules
+
+## Dependencies
+
+- D3.js v7.8.5+ (loaded via CDN)
+- @lapo/asn1js v2.0.0+ (loaded via CDN in control panel)
+
+## License
+
+MIT
+
+## Contributing
+
+Contributions are welcome! The web components are built with vanilla JavaScript and use the Shadow DOM for encapsulation.
+
+## Architecture
+
+```
+asn1-graph-viewer.js     - Graph visualization component
+asn1-control-panel.js    - Control panel component
+json-to-go.js            - Legacy D3 graph module (deprecated)
+asn1-graph.html          - Demo application
+```
+
+The components use Shadow DOM to encapsulate styles and structure, making them safe to use in any environment without CSS conflicts.
