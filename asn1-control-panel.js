@@ -320,29 +320,42 @@ class ASN1ControlPanel extends HTMLElement {
     }
 
     try {
+      console.log("🔍 Starting decode of hex data:", hex.substring(0, 50) + "...");
+      console.log("Hex length:", hex.length, "characters");
+
       const bytes = window.Hex.decode(hex);
+      console.log("✅ Hex decoded to", bytes.length, "bytes");
 
       this.allNodes = [];
       this.unknownTypes = new Set();
       let pos = 0;
 
+      console.log("🔄 Starting ASN.1 parsing loop...");
       while (pos < bytes.length) {
         try {
           const remaining = bytes.slice(pos);
+          console.log(`  Parsing at position ${pos}, remaining bytes:`, remaining.length);
+
           const node = window.ASN1.decode(remaining);
+          console.log(`  ✅ Decoded node:`, node);
+
           this.allNodes.push(node);
           this.collectUnknownTypes(node);
+
           const nodeEnd = node.posEnd();
+          console.log(`  Node ends at position:`, nodeEnd);
           pos += nodeEnd;
         } catch (e) {
-          console.log("Stopped at position:", pos, "Error:", e.message);
+          console.error("❌ Stopped at position:", pos, "Error:", e.message, e);
           break;
         }
       }
 
+      console.log("✅ Parsing complete. Total nodes:", this.allNodes.length);
+
       const serialized = this.allNodes.map((n) => this.serializeNode(n));
 
-      console.log("Decoded", this.allNodes.length, "nodes, serialized:", serialized);
+      console.log("📊 Serialized data:", JSON.stringify(serialized, null, 2));
 
       // Dispatch event with decoded data
       this.dispatchEvent(new CustomEvent("decoded", {

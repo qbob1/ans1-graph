@@ -282,22 +282,18 @@
     <!-- Load D3.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
-    <!-- Load ASN.1 Library -->
+    <!-- Load Web Components and Libraries -->
     <script type="module">
       import { ASN1 } from "https://unpkg.com/@lapo/asn1js@2.0.0/asn1.js";
       import { Hex } from "https://unpkg.com/@lapo/asn1js@2.0.0/hex.js";
+      import { ASN1GraphViewer } from "./asn1-graph-viewer.js";
+      import { ASN1ControlPanel } from "./asn1-control-panel.js";
 
       // Make ASN1 and Hex available globally for the web components
       window.ASN1 = ASN1;
       window.Hex = Hex;
 
-      console.log("ASN.1 library loaded:", { ASN1, Hex });
-    </script>
-
-    <!-- Load Web Components -->
-    <script type="module">
-      import { ASN1GraphViewer } from "./asn1-graph-viewer.js";
-      import { ASN1ControlPanel } from "./asn1-control-panel.js";
+      console.log("✅ All libraries and components loaded");
 
       const graphViewer = document.getElementById("graphViewer");
       const controlPanel = document.getElementById("controlPanel");
