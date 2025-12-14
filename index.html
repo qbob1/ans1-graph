@@ -400,6 +400,24 @@
       // Listen for configuration import
       controlPanel.addEventListener("importConfiguration", (event) => {
         graphViewer.importConfiguration(event.detail.config);
+        controlPanel.updateRulesDisplay(event.detail.config);
+      });
+
+      // Listen for configuration request
+      controlPanel.addEventListener("requestConfiguration", () => {
+        const config = graphViewer.exportConfiguration();
+        controlPanel.updateRulesDisplay(config);
+      });
+
+      // Listen for constraints changes from graph viewer
+      graphViewer.addEventListener("constraintsChanged", () => {
+        const config = graphViewer.exportConfiguration();
+        controlPanel.updateRulesDisplay(config);
+      });
+
+      graphViewer.addEventListener("configurationImported", () => {
+        const config = graphViewer.exportConfiguration();
+        controlPanel.updateRulesDisplay(config);
       });
 
       // Handle window resize

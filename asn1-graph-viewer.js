@@ -560,14 +560,35 @@ class ASN1GraphViewer extends HTMLElement {
         }
       });
     } else if (typeof obj === "object" && obj !== null) {
-      // Determine node name
+      // Determine node name with tag information
+      let nodeName = name;
+      let tagInfo = "";
+
       if (obj.name) {
-        node.name = obj.name;
+        nodeName = obj.name;
       } else if (obj.type) {
-        node.name = obj.type;
-      } else {
-        node.name = name;
+        nodeName = obj.type;
       }
+
+      // Add application-relevant tag information
+      if (obj.tagClass !== undefined && obj.tagNumber !== undefined) {
+        const tagClass = obj.tagClass;
+        const tagNumber = obj.tagNumber;
+
+        // Show tag info for non-universal tags
+        if (tagClass === 1) {
+          // Application
+          tagInfo = ` [APPLICATION ${tagNumber}]`;
+        } else if (tagClass === 2) {
+          // Context-specific
+          tagInfo = ` [${tagNumber}]`;
+        } else if (tagClass === 3) {
+          // Private
+          tagInfo = ` [PRIVATE ${tagNumber}]`;
+        }
+      }
+
+      node.name = nodeName + tagInfo;
 
       // Separate properties and children
       Object.entries(obj).forEach(([key, value]) => {
@@ -854,10 +875,12 @@ class ASN1GraphViewer extends HTMLElement {
     const allOIDs = this.collectAllOIDs();
 
     // Build modal content
+    const nodeAlias = currentConstraints.alias || null;
+
     let html = `
       <div class="field-group">
         <div class="field-label">Node Type</div>
-        <div class="field-value">${nodeData.data.name}</div>
+        <div class="field-value">${nodeData.data.name}${nodeAlias ? ` <span style="color: #667eea; font-weight: 600;">(${nodeAlias})</span>` : ''}</div>
       </div>
       <div class="field-group">
         <div class="field-label">Path</div>
@@ -978,12 +1001,21 @@ class ASN1GraphViewer extends HTMLElement {
     html += `
       <div class="field-group" style="margin-top: 24px; border-top: 2px solid #e0e0e0; padding-top: 16px;">
         <div class="field-label" style="font-size: 14px; margin-bottom: 12px;">
-          Field Constraints
+          Field Constraints & Alias
           <button class="btn-small" id="toggleConstraints" style="float: right; font-size: 11px; padding: 4px 8px;">
-            ${Object.keys(currentConstraints).length > 0 ? 'Edit' : 'Add'}
+            ${Object.keys(currentConstraints).length > 0 || currentConstraints.alias ? 'Edit' : 'Add'}
           </button>
         </div>
         <div id="constraintsSection" style="display: none;">
+          <div class="constraint-field" style="margin-bottom: 16px; padding: 12px; background: #f0f7ff; border-radius: 6px;">
+            <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">Node Alias</div>
+            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">
+              Common name for this node (e.g., "User ID", "Password")
+            </label>
+            <input type="text" style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px;"
+                   data-constraint-type="alias" value="${currentConstraints.alias || ''}"
+                   placeholder="Enter friendly name for this node">
+          </div>
     `;
 
     if (editableProps.length > 0) {
@@ -1106,13 +1138,22 @@ class ASN1GraphViewer extends HTMLElement {
    */
   saveNodeConstraintsFromModal(nodeData) {
     const modalBody = this.shadowRoot.getElementById("modalBody");
-    const constraintInputs = modalBody.querySelectorAll("[data-constraint-field]");
+    const constraintInputs = modalBody.querySelectorAll("[data-constraint-field], [data-constraint-type='alias']");
 
     const newConstraints = {};
 
     constraintInputs.forEach((input) => {
       const field = input.dataset.constraintField;
       const type = input.dataset.constraintType;
+
+      // Handle alias separately (node-level, not field-level)
+      if (type === 'alias') {
+        const aliasValue = input.value.trim();
+        if (aliasValue) {
+          newConstraints.alias = aliasValue;
+        }
+        return;
+      }
 
       if (!newConstraints[field]) {
         newConstraints[field] = {};
@@ -1139,7 +1180,7 @@ class ASN1GraphViewer extends HTMLElement {
 
     // Remove empty constraint objects
     Object.keys(newConstraints).forEach(key => {
-      if (Object.keys(newConstraints[key]).length === 0) {
+      if (key !== 'alias' && Object.keys(newConstraints[key]).length === 0) {
         delete newConstraints[key];
       }
     });

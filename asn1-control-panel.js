@@ -358,6 +358,17 @@ class ASN1ControlPanel extends HTMLElement {
           </div>
 
           <div class="section">
+            <div class="section-title">Rules & Custom Types</div>
+            <div id="rulesContainer">
+              <div class="empty-state">No constraints or custom types defined yet</div>
+            </div>
+            <button class="btn-secondary" id="toggleRawConfig" style="margin-top: 12px;">📄 View Raw Configuration</button>
+            <div id="rawConfigContainer" style="display: none; margin-top: 12px;">
+              <textarea readonly style="width: 100%; min-height: 200px; font-family: monospace; font-size: 11px; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; background: #f9f9f9;"></textarea>
+            </div>
+          </div>
+
+          <div class="section">
             <div class="section-title">Configuration</div>
             <p style="font-size: 12px; color: #666; margin-bottom: 12px;">
               Export and import node constraints configuration
@@ -452,6 +463,78 @@ class ASN1ControlPanel extends HTMLElement {
       // Reset file input
       configFileInput.value = '';
     });
+
+    // Toggle raw config view
+    const toggleRawConfigBtn = this.shadowRoot.getElementById("toggleRawConfig");
+    const rawConfigContainer = this.shadowRoot.getElementById("rawConfigContainer");
+
+    toggleRawConfigBtn.addEventListener("click", () => {
+      const isVisible = rawConfigContainer.style.display !== 'none';
+      rawConfigContainer.style.display = isVisible ? 'none' : 'block';
+      toggleRawConfigBtn.textContent = isVisible ? '📄 View Raw Configuration' : '📄 Hide Raw Configuration';
+
+      if (!isVisible) {
+        // Request current config from graph viewer
+        this.dispatchEvent(new CustomEvent("requestConfiguration", {
+          bubbles: true,
+          composed: true
+        }));
+      }
+    });
+  }
+
+  updateRulesDisplay(config) {
+    const rulesContainer = this.shadowRoot.getElementById("rulesContainer");
+    const rawTextarea = this.shadowRoot.querySelector("#rawConfigContainer textarea");
+
+    if (!config || !config.constraints || Object.keys(config.constraints).length === 0) {
+      rulesContainer.innerHTML = '<div class="empty-state">No constraints or custom types defined yet</div>';
+      rawTextarea.value = '{}';
+      return;
+    }
+
+    // Update raw config view
+    rawTextarea.value = JSON.stringify(config, null, 2);
+
+    // Build rules display
+    let html = '';
+    const constraints = config.constraints;
+
+    Object.entries(constraints).forEach(([nodePath, fieldConstraints]) => {
+      const alias = fieldConstraints.alias;
+      const displayPath = alias ? `${nodePath} (${alias})` : nodePath;
+
+      html += `
+        <div style="margin-bottom: 16px; padding: 12px; background: #f9f9f9; border-radius: 6px; border-left: 4px solid #667eea;">
+          <div style="font-weight: 600; color: #667eea; margin-bottom: 8px; font-size: 13px;">
+            ${displayPath}
+          </div>
+      `;
+
+      Object.entries(fieldConstraints).forEach(([fieldName, rules]) => {
+        // Skip the alias entry
+        if (fieldName === 'alias') return;
+        const rulesList = [];
+        if (rules.required) rulesList.push('Required');
+        if (rules.min !== undefined) rulesList.push(`Min: ${rules.min}`);
+        if (rules.max !== undefined) rulesList.push(`Max: ${rules.max}`);
+        if (rules.minLength !== undefined) rulesList.push(`Min Length: ${rules.minLength}`);
+        if (rules.maxLength !== undefined) rulesList.push(`Max Length: ${rules.maxLength}`);
+        if (rules.pattern) rulesList.push(`Pattern: ${rules.pattern}`);
+        if (rules.enum) rulesList.push(`Enum: ${rules.enum.join(', ')}`);
+
+        html += `
+          <div style="margin-left: 12px; margin-top: 6px; font-size: 12px;">
+            <span style="color: #333; font-weight: 500;">${fieldName}:</span>
+            <span style="color: #666;">${rulesList.join(' • ')}</span>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+    });
+
+    rulesContainer.innerHTML = html;
   }
 
   showStatus(message, type = "success") {
