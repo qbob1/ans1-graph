@@ -190,6 +190,19 @@ class ASN1GraphViewer extends HTMLElement {
           resize: vertical;
         }
 
+        select.field-input {
+          min-height: 40px;
+          cursor: pointer;
+          background: white;
+        }
+
+        textarea.field-input[readonly],
+        select.field-input[disabled] {
+          background: #f5f5f5;
+          color: #999;
+          cursor: not-allowed;
+        }
+
         .modal-actions {
           display: flex;
           gap: 12px;
@@ -622,6 +635,34 @@ class ASN1GraphViewer extends HTMLElement {
   }
 
   /**
+   * Collect all OIDs from the data tree
+   */
+  collectAllOIDs(node = null) {
+    const oids = new Set();
+    const rootNode = node || this.root;
+
+    if (!rootNode) return [];
+
+    rootNode.each((d) => {
+      // Check if this node is an OID type
+      if (d.data.rawData) {
+        if (d.data.rawData.type === 'OBJECT IDENTIFIER' ||
+            d.data.rawData.type === 'OID' ||
+            d.data.name === 'OBJECT IDENTIFIER') {
+          // Try to find the OID value in various possible locations
+          if (d.data.rawData.oid) {
+            oids.add(d.data.rawData.oid);
+          } else if (d.data.rawData.content) {
+            oids.add(d.data.rawData.content);
+          }
+        }
+      }
+    });
+
+    return Array.from(oids).sort();
+  }
+
+  /**
    * Show edit modal for a node
    */
   showEditModal(nodeData) {
@@ -631,6 +672,9 @@ class ASN1GraphViewer extends HTMLElement {
 
     const hasChildren = nodeData.data.children && nodeData.data.children.length > 0;
     const hasProperties = nodeData.data.properties && nodeData.data.properties.length > 0;
+
+    // Collect all OIDs from the payload
+    const allOIDs = this.collectAllOIDs();
 
     // Build modal content
     let html = `
@@ -644,14 +688,34 @@ class ASN1GraphViewer extends HTMLElement {
       </div>
     `;
 
-    // Show info about children if this node has them
+    // Show class if available
+    if (nodeData.data.rawData && nodeData.data.rawData.tagClass !== undefined) {
+      const classNames = ['Universal', 'Application', 'Context-specific', 'Private'];
+      const className = classNames[nodeData.data.rawData.tagClass] || nodeData.data.rawData.tagClass;
+      html += `
+        <div class="field-group">
+          <div class="field-label">Class</div>
+          <div class="field-value">${className}</div>
+        </div>
+      `;
+    }
+
+    // Show list of child nodes if this node has them
     if (hasChildren) {
       html += `
         <div class="field-group">
-          <div class="field-label">Child Nodes</div>
+          <div class="field-label">Child Nodes (${nodeData.data.children.length})</div>
           <div class="field-value" style="color: #666; font-style: italic;">
-            This node has ${nodeData.data.children.length} child node(s).
-            Only this node's properties can be edited here.
+      `;
+
+      nodeData.data.children.forEach((child, index) => {
+        const childType = child.name || 'Unknown';
+        html += `<div style="padding: 4px 0; border-bottom: 1px solid #eee;">
+          ${index + 1}. ${childType}
+        </div>`;
+      });
+
+      html += `
           </div>
         </div>
       `;
@@ -659,6 +723,10 @@ class ASN1GraphViewer extends HTMLElement {
 
     // Add editable properties from rawData (only for this node, not children)
     const editableProps = [];
+    const isOIDNode = nodeData.data.rawData &&
+                      (nodeData.data.rawData.type === 'OBJECT IDENTIFIER' ||
+                       nodeData.data.name === 'OBJECT IDENTIFIER');
+
     if (nodeData.data.rawData && typeof nodeData.data.rawData === 'object') {
       // Get all properties from rawData except structural ones
       const excludeKeys = ['sub', 'tagClass', 'tagNumber', 'tagConstructed', 'subCount'];
@@ -672,12 +740,27 @@ class ASN1GraphViewer extends HTMLElement {
     if (editableProps.length > 0) {
       html += `<div class="field-label" style="margin-top: 16px;">Editable Properties (This Node Only)</div>`;
       editableProps.forEach((prop, index) => {
-        html += `
-          <div class="field-group">
-            <div class="field-label">${prop.key}</div>
-            <textarea class="field-input" data-prop-key="${prop.key}">${prop.value}</textarea>
-          </div>
-        `;
+        const isLengthField = prop.key === 'length';
+        const isReadonly = (isLengthField && hasChildren);
+        const isOIDField = isOIDNode && (prop.key === 'oid' || prop.key === 'content');
+
+        html += `<div class="field-group">
+          <div class="field-label">${prop.key}${isReadonly ? ' (read-only)' : ''}</div>`;
+
+        // Use dropdown for OID fields
+        if (isOIDField && allOIDs.length > 0) {
+          html += `<select class="field-input" data-prop-key="${prop.key}" ${isReadonly ? 'disabled' : ''}>`;
+          allOIDs.forEach(oid => {
+            const selected = oid === prop.value ? 'selected' : '';
+            html += `<option value="${oid}" ${selected}>${oid}</option>`;
+          });
+          html += `</select>`;
+        } else {
+          // Regular textarea
+          html += `<textarea class="field-input" data-prop-key="${prop.key}" ${isReadonly ? 'readonly' : ''}>${prop.value}</textarea>`;
+        }
+
+        html += `</div>`;
       });
     } else {
       html += `
@@ -735,13 +818,19 @@ class ASN1GraphViewer extends HTMLElement {
    */
   saveNodeEdits(nodeData) {
     const modalBody = this.shadowRoot.getElementById("modalBody");
-    const inputs = modalBody.querySelectorAll("textarea[data-prop-key]");
+    // Get both textareas and select elements
+    const inputs = modalBody.querySelectorAll("textarea[data-prop-key], select[data-prop-key]");
 
     let contentChanged = false;
     let newContentValue = null;
 
     // Only update properties that belong to THIS node, not children
     inputs.forEach((input) => {
+      // Skip if readonly or disabled
+      if (input.hasAttribute('readonly') || input.hasAttribute('disabled')) {
+        return;
+      }
+
       const key = input.dataset.propKey;
       const newValue = input.value;
 
