@@ -644,7 +644,16 @@ class ASN1ControlPanel extends HTMLElement {
       obj.subCount = node.sub.length;
       obj.sub = node.sub.map((n) => this.serializeNode(n, depth + 1));
     } else if (node.content !== undefined) {
-      obj.content = typeof node.content === "function" ? node.content() : node.content;
+      let content = typeof node.content === "function" ? node.content() : node.content;
+
+      // Remove "(x byte)" prefix if present
+      if (typeof content === "string" && content.match(/^\(\d+ byte\)/)) {
+        // Extract content after the byte count line
+        const lines = content.split("\n");
+        content = lines.slice(1).join("\n").trim();
+      }
+
+      obj.content = content;
     }
 
     return obj;
