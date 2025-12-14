@@ -261,10 +261,14 @@ Nodes display only structural information (type, length, name) to keep the graph
 - **Path**: The hierarchical path to the node
 - **Class**: The tag class (Universal, Application, Context-specific, Private)
 - **Child Nodes**: Full list of child nodes by name (for SEQUENCE/SET nodes)
-- **Editable Fields**: Smart input fields based on property type:
-  - Regular fields: Textarea for editing values
-  - OID fields: Dropdown selector showing all OIDs in the payload
-  - Length field: Read-only for nodes with children (auto-calculated)
+- **Editable Fields**: Smart input fields automatically selected based on ASN.1 type:
+  - **INTEGER**: Number input with step controls
+  - **BOOLEAN**: Checkbox input
+  - **Date/Time**: Date, time, or datetime-local pickers for UTCTime, GeneralizedTime
+  - **String types**: Text input for IA5String, PrintableString, UTF8String
+  - **OID fields**: Dropdown selector showing all OIDs in the payload
+  - **Length field**: Number input, read-only for nodes with children (auto-calculated)
+  - **Complex types**: Textarea for OCTET STRING, BIT STRING, and other complex data
 - **Raw Data**: Read-only JSON view of the complete node data
 - **Actions**: Save changes or cancel
 

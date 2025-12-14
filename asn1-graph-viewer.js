@@ -196,8 +196,22 @@ class ASN1GraphViewer extends HTMLElement {
           background: white;
         }
 
+        input.field-input[type="text"],
+        input.field-input[type="number"],
+        input.field-input[type="date"],
+        input.field-input[type="time"],
+        input.field-input[type="datetime-local"] {
+          min-height: 40px;
+        }
+
+        input.field-input[type="checkbox"] {
+          width: auto;
+          min-height: auto;
+        }
+
         textarea.field-input[readonly],
-        select.field-input[disabled] {
+        select.field-input[disabled],
+        input.field-input[readonly] {
           background: #f5f5f5;
           color: #999;
           cursor: not-allowed;
@@ -663,6 +677,40 @@ class ASN1GraphViewer extends HTMLElement {
   }
 
   /**
+   * Determine the appropriate input type for a field based on ASN.1 type and field key
+   */
+  getInputTypeForField(nodeType, fieldKey, fieldValue) {
+    // Handle specific field keys first
+    if (fieldKey === 'length') {
+      return { type: 'number', min: 0, step: 1 };
+    }
+
+    // Map ASN.1 types to input types
+    const typeMapping = {
+      'INTEGER': { type: 'number', step: 1 },
+      'BOOLEAN': { type: 'checkbox' },
+      'UTCTime': { type: 'datetime-local' },
+      'GeneralizedTime': { type: 'datetime-local' },
+      'DATE': { type: 'date' },
+      'TIME': { type: 'time' },
+      'NumericString': { type: 'number' },
+      'IA5String': { type: 'text' },
+      'PrintableString': { type: 'text' },
+      'UTF8String': { type: 'text' },
+      'BMPString': { type: 'text' },
+      'UniversalString': { type: 'text' },
+    };
+
+    // Check if the node type matches any known types
+    if (typeMapping[nodeType]) {
+      return typeMapping[nodeType];
+    }
+
+    // Default to textarea for complex types
+    return { type: 'textarea' };
+  }
+
+  /**
    * Show edit modal for a node
    */
   showEditModal(nodeData) {
@@ -739,6 +787,10 @@ class ASN1GraphViewer extends HTMLElement {
 
     if (editableProps.length > 0) {
       html += `<div class="field-label" style="margin-top: 16px;">Editable Properties (This Node Only)</div>`;
+
+      // Get the node type for input type detection
+      const nodeType = nodeData.data.rawData?.type || nodeData.data.name;
+
       editableProps.forEach((prop, index) => {
         const isLengthField = prop.key === 'length';
         const isReadonly = (isLengthField && hasChildren);
@@ -756,8 +808,28 @@ class ASN1GraphViewer extends HTMLElement {
           });
           html += `</select>`;
         } else {
-          // Regular textarea
-          html += `<textarea class="field-input" data-prop-key="${prop.key}" ${isReadonly ? 'readonly' : ''}>${prop.value}</textarea>`;
+          // Get appropriate input type based on ASN.1 type
+          const inputInfo = this.getInputTypeForField(nodeType, prop.key, prop.value);
+
+          if (inputInfo.type === 'checkbox') {
+            // Boolean checkbox
+            const checked = (prop.value === 'true' || prop.value === '1' || prop.value === 'TRUE') ? 'checked' : '';
+            html += `<label style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" class="field-input" data-prop-key="${prop.key}" ${checked} ${isReadonly ? 'disabled' : ''} style="width: auto;">
+              <span>${prop.value}</span>
+            </label>`;
+          } else if (inputInfo.type === 'textarea') {
+            // Default textarea for complex content
+            html += `<textarea class="field-input" data-prop-key="${prop.key}" ${isReadonly ? 'readonly' : ''}>${prop.value}</textarea>`;
+          } else {
+            // Standard input types (text, number, date, datetime-local, time)
+            let attrs = `type="${inputInfo.type}"`;
+            if (inputInfo.min !== undefined) attrs += ` min="${inputInfo.min}"`;
+            if (inputInfo.max !== undefined) attrs += ` max="${inputInfo.max}"`;
+            if (inputInfo.step !== undefined) attrs += ` step="${inputInfo.step}"`;
+
+            html += `<input class="field-input" ${attrs} data-prop-key="${prop.key}" value="${prop.value}" ${isReadonly ? 'readonly' : ''}>`;
+          }
         }
 
         html += `</div>`;
@@ -818,8 +890,8 @@ class ASN1GraphViewer extends HTMLElement {
    */
   saveNodeEdits(nodeData) {
     const modalBody = this.shadowRoot.getElementById("modalBody");
-    // Get both textareas and select elements
-    const inputs = modalBody.querySelectorAll("textarea[data-prop-key], select[data-prop-key]");
+    // Get all input types: textareas, selects, and inputs
+    const inputs = modalBody.querySelectorAll("textarea[data-prop-key], select[data-prop-key], input[data-prop-key]");
 
     let contentChanged = false;
     let newContentValue = null;
@@ -832,14 +904,29 @@ class ASN1GraphViewer extends HTMLElement {
       }
 
       const key = input.dataset.propKey;
-      const newValue = input.value;
+      let newValue;
+
+      // Handle different input types
+      if (input.type === 'checkbox') {
+        newValue = input.checked ? 'true' : 'false';
+      } else {
+        newValue = input.value;
+      }
 
       // Update the raw data object (this is a reference to the original data)
       if (nodeData.data.rawData && typeof nodeData.data.rawData === 'object') {
         // Only update if this key exists directly on this node's data
         // Don't update if it's part of a child node (sub array)
         if (nodeData.data.rawData.hasOwnProperty(key) && key !== 'sub') {
-          nodeData.data.rawData[key] = newValue;
+          // Convert to appropriate type based on original data type
+          const originalValue = nodeData.data.rawData[key];
+          if (typeof originalValue === 'number') {
+            nodeData.data.rawData[key] = Number(newValue);
+          } else if (typeof originalValue === 'boolean') {
+            nodeData.data.rawData[key] = newValue === 'true' || newValue === true;
+          } else {
+            nodeData.data.rawData[key] = newValue;
+          }
 
           // Track if content was changed
           if (key === 'content') {
