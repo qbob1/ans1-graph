@@ -320,9 +320,13 @@ class ASN1ControlPanel extends HTMLElement {
           <div id="statusMessage"></div>
 
           <div class="section">
-            <div class="section-title">Hex Input</div>
+            <div class="section-title">Input</div>
             <textarea id="hexInput" placeholder="Paste your hex-encoded ASN.1 data here..."></textarea>
-            <button class="btn-primary" id="decodeBtn">🔍 Decode</button>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <button class="btn-primary" id="decodeBtn">🔍 Decode Hex</button>
+              <button class="btn-secondary" id="importDerBtn">📁 Import DER File</button>
+            </div>
+            <input type="file" id="derFileInput" accept=".der,.ber" style="display: none;">
           </div>
 
           <div class="section">
@@ -415,6 +419,8 @@ class ASN1ControlPanel extends HTMLElement {
     const edgeLabelsCheckbox = this.shadowRoot.getElementById("edgeLabelsCheckbox");
     const spacingSlider = this.shadowRoot.getElementById("spacingSlider");
     const spacingValue = this.shadowRoot.getElementById("spacingValue");
+    const importDerBtn = this.shadowRoot.getElementById("importDerBtn");
+    const derFileInput = this.shadowRoot.getElementById("derFileInput");
 
     toggleBtn.addEventListener("click", () => {
       this.isOpen = !this.isOpen;
@@ -426,6 +432,20 @@ class ASN1ControlPanel extends HTMLElement {
     decodeBtn.addEventListener("click", () => this.decode());
     saveLabelsBtn.addEventListener("click", () => this.saveLabels());
     clearLabelsBtn.addEventListener("click", () => this.clearLabels());
+
+    // DER file import
+    importDerBtn.addEventListener("click", () => {
+      derFileInput.click();
+    });
+
+    derFileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        this.importDerFile(file);
+      }
+      // Reset file input
+      derFileInput.value = '';
+    });
 
     // Edge labels checkbox
     edgeLabelsCheckbox.addEventListener("change", (e) => {
@@ -671,6 +691,42 @@ class ASN1ControlPanel extends HTMLElement {
       statusEl.className = "";
       statusEl.textContent = "";
     }, 3000);
+  }
+
+  importDerFile(file) {
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      try {
+        const arrayBuffer = event.target.result;
+        const bytes = new Uint8Array(arrayBuffer);
+
+        // Convert bytes to hex string
+        const hex = Array.from(bytes)
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        console.log(`📁 Loaded DER file: ${file.name} (${bytes.length} bytes)`);
+
+        // Populate hex input
+        const hexInput = this.shadowRoot.getElementById("hexInput");
+        hexInput.value = hex;
+
+        // Automatically decode
+        this.decode();
+
+        this.showStatus(`File "${file.name}" loaded (${bytes.length} bytes)`, "success");
+      } catch (error) {
+        console.error("Error reading DER file:", error);
+        this.showStatus("Error reading file: " + error.message, "error");
+      }
+    };
+
+    reader.onerror = () => {
+      this.showStatus("Error reading file", "error");
+    };
+
+    reader.readAsArrayBuffer(file);
   }
 
   decode() {

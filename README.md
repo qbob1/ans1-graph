@@ -8,6 +8,7 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - 🎨 **Interactive D3 visualization**: Zoom and pan the graph
 - 🏷️ **Custom label management**: Define custom names for ASN.1 tags
 - 📋 **Schema import**: Load ASN.1 schema definitions to auto-apply field names and constraints
+- 📁 **DER file import**: Load .der/.ber files directly (no hex conversion needed)
 - 📱 **Responsive**: Full-screen graph with left-side drawer panel
 - 🎯 **Clean drawer UI**: All controls in a beautiful slide-out drawer
 - ⌨️ **Keyboard shortcuts**: Quick access to controls
@@ -356,9 +357,15 @@ The control panel includes display settings to customize the graph visualization
 
 ## Features in Detail
 
-### Hex Input
+### Input Methods
 
-Paste hex-encoded ASN.1 data into the input field and click "Decode" to visualize the structure.
+**Hex Input**
+- Paste hex-encoded ASN.1 data into the input field and click "🔍 Decode Hex"
+
+**DER File Import**
+- Click "📁 Import DER File" to load .der or .ber files directly
+- Files are automatically converted to hex and decoded
+- Supports binary DER/BER encoded ASN.1 structures
 
 ### Custom Labels
 
