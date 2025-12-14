@@ -259,13 +259,19 @@ The search bar at the top-left allows you to filter nodes in real-time:
 Nodes display only structural information (type, length, name) to keep the graph clean. Click any node to open an edit popup with:
 - **Node Type**: The ASN.1 type name
 - **Path**: The hierarchical path to the node
-- **Editable Fields**: Textarea for each property value (including content)
+- **Class**: The tag class (Universal, Application, Context-specific, Private)
+- **Child Nodes**: Full list of child nodes by name (for SEQUENCE/SET nodes)
+- **Editable Fields**: Smart input fields based on property type:
+  - Regular fields: Textarea for editing values
+  - OID fields: Dropdown selector showing all OIDs in the payload
+  - Length field: Read-only for nodes with children (auto-calculated)
 - **Raw Data**: Read-only JSON view of the complete node data
 - **Actions**: Save changes or cancel
 
 When you save changes:
 - The graph automatically re-renders with updated values
 - If you edit the "content" field, the "length" field is automatically recalculated based on the byte length of the new content
+- Length fields are protected from editing when the node has children (SEQUENCE/SET types)
 
 ### Display Settings
 
