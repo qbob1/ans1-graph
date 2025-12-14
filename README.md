@@ -7,6 +7,7 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - ✨ **Framework-agnostic**: Use in React, Vue, Angular, or vanilla HTML
 - 🎨 **Interactive D3 visualization**: Zoom and pan the graph
 - 🏷️ **Custom label management**: Define custom names for ASN.1 tags
+- 📋 **Schema import**: Load ASN.1 schema definitions to auto-apply field names and constraints
 - 📱 **Responsive**: Full-screen graph with left-side drawer panel
 - 🎯 **Clean drawer UI**: All controls in a beautiful slide-out drawer
 - ⌨️ **Keyboard shortcuts**: Quick access to controls
@@ -16,6 +17,7 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - ✏️ **Editable nodes**: Click any node to view and edit its properties
 - 🔧 **Auto-length calculation**: Length field updates automatically when content is edited
 - ⚙️ **Configurable display**: Toggle edge labels and adjust node spacing with slider controls
+- 🛡️ **Constraint validation**: Define and enforce validation rules for node fields
 
 ## Live Demo
 
@@ -276,6 +278,66 @@ When you save changes:
 - The graph automatically re-renders with updated values
 - If you edit the "content" field, the "length" field is automatically recalculated based on the byte length of the new content
 - Length fields are protected from editing when the node has children (SEQUENCE/SET types)
+
+### Schema Import
+
+Import ASN.1 schema definitions to automatically apply field names and constraints to your decoded data:
+
+**Schema Format**
+- JSON format defining structure, field names, tags, and constraints
+- See `schema-format.md` for complete documentation
+- Example schema provided in `sample-schema.json`
+
+**How to Use**
+1. Decode your hex DER data first
+2. Open the "Schema Management" section in the control panel
+3. Click "📋 Import Schema" and select your JSON schema file
+4. Select the imported schema from the dropdown
+5. Click "✓ Apply Schema to Data"
+6. Field names and constraints will be applied to your data
+
+**Schema Features**
+- **Field Naming**: Replace generic tag names with meaningful field names
+- **Tag Mapping**: Match schema fields to DER data by tag class and number
+- **Auto Constraints**: Apply validation rules from schema definitions
+- **Nested Structures**: Support for complex hierarchical data structures
+- **Multiple Schemas**: Import and switch between different schema definitions
+
+**Example Schema**
+```json
+{
+  "name": "UserRecord",
+  "version": "1.0",
+  "description": "User authentication record",
+  "root": {
+    "type": "SEQUENCE",
+    "fields": [
+      {
+        "name": "userId",
+        "type": "INTEGER",
+        "tag": { "class": 2, "number": 0 },
+        "constraints": {
+          "required": true,
+          "min": 0,
+          "max": 999999
+        }
+      },
+      {
+        "name": "userName",
+        "type": "UTF8String",
+        "tag": { "class": 2, "number": 1 },
+        "constraints": {
+          "required": true,
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    ]
+  }
+}
+```
+
+For complete schema documentation, see [schema-format.md](schema-format.md).
 
 ### Display Settings
 

@@ -1,0 +1,116 @@
+{
+  "name": "UserRecord",
+  "version": "1.0",
+  "description": "Sample schema for user authentication records",
+  "root": {
+    "name": "UserRecord",
+    "type": "SEQUENCE",
+    "fields": [
+      {
+        "name": "userId",
+        "type": "INTEGER",
+        "tag": {
+          "class": 2,
+          "number": 0
+        },
+        "optional": false,
+        "constraints": {
+          "required": true,
+          "min": 0,
+          "max": 999999
+        }
+      },
+      {
+        "name": "userName",
+        "type": "UTF8String",
+        "tag": {
+          "class": 2,
+          "number": 1
+        },
+        "optional": false,
+        "constraints": {
+          "required": true,
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      {
+        "name": "userAttributes",
+        "type": "SEQUENCE",
+        "tag": {
+          "class": 2,
+          "number": 3
+        },
+        "optional": true,
+        "fields": [
+          {
+            "name": "attributeId",
+            "type": "INTEGER",
+            "constraints": {
+              "required": true,
+              "min": 1,
+              "max": 255
+            }
+          },
+          {
+            "name": "attributeValue",
+            "type": "OCTET STRING",
+            "constraints": {
+              "required": true,
+              "maxLength": 1024
+            }
+          }
+        ]
+      },
+      {
+        "name": "description",
+        "type": "UTF8String",
+        "tag": {
+          "class": 2,
+          "number": 4
+        },
+        "optional": true,
+        "constraints": {
+          "maxLength": 500
+        }
+      },
+      {
+        "name": "contactInfo",
+        "type": "SEQUENCE",
+        "tag": {
+          "class": 2,
+          "number": 5
+        },
+        "optional": true,
+        "fields": [
+          {
+            "name": "firstName",
+            "type": "UTF8String",
+            "constraints": {
+              "required": true,
+              "minLength": 1,
+              "maxLength": 50
+            }
+          },
+          {
+            "name": "lastName",
+            "type": "UTF8String",
+            "constraints": {
+              "required": true,
+              "minLength": 1,
+              "maxLength": 50
+            }
+          },
+          {
+            "name": "email",
+            "type": "UTF8String",
+            "constraints": {
+              "required": true,
+              "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -420,6 +420,44 @@
         controlPanel.updateRulesDisplay(config);
       });
 
+      // Schema management events
+      controlPanel.addEventListener("schemaImport", (event) => {
+        const success = graphViewer.importSchema(event.detail.schema);
+        if (success) {
+          const schemas = graphViewer.getSchemas();
+          controlPanel.updateSchemaList(schemas);
+        }
+      });
+
+      controlPanel.addEventListener("schemaSelected", (event) => {
+        graphViewer.setActiveSchema(event.detail.schemaName);
+      });
+
+      controlPanel.addEventListener("applySchema", () => {
+        const success = graphViewer.applyActiveSchema();
+        if (success) {
+          console.log("✅ Schema applied successfully");
+        } else {
+          console.error("❌ Failed to apply schema");
+        }
+      });
+
+      controlPanel.addEventListener("clearSchemas", () => {
+        graphViewer.clearSchemas();
+      });
+
+      graphViewer.addEventListener("schemaImported", (event) => {
+        console.log("Schema imported:", event.detail.schema.name);
+      });
+
+      graphViewer.addEventListener("activeSchemaChanged", (event) => {
+        console.log("Active schema changed to:", event.detail.schema.name);
+      });
+
+      graphViewer.addEventListener("schemaApplied", (event) => {
+        console.log("Schema applied:", event.detail.schema.name);
+      });
+
       // Handle window resize
       let resizeTimeout;
       window.addEventListener("resize", () => {

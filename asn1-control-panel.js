@@ -377,6 +377,30 @@ class ASN1ControlPanel extends HTMLElement {
             <button class="btn-secondary" id="importConfig">📤 Import Configuration</button>
             <input type="file" id="configFileInput" accept=".json" style="display: none;">
           </div>
+
+          <div class="section">
+            <div class="section-title">Schema Management</div>
+            <p style="font-size: 12px; color: #666; margin-bottom: 12px;">
+              Import and apply ASN.1 schemas to decoded data
+            </p>
+            <button class="btn-secondary" id="importSchema">📋 Import Schema</button>
+            <input type="file" id="schemaFileInput" accept=".json" style="display: none;">
+
+            <div id="schemaList" style="margin-top: 16px;">
+              <div class="empty-state" style="padding: 20px; font-size: 12px;">No schemas loaded</div>
+            </div>
+
+            <div id="schemaControls" style="display: none; margin-top: 12px;">
+              <label style="font-size: 12px; color: #666; display: block; margin-bottom: 8px;">
+                Active Schema:
+              </label>
+              <select id="schemaSelector" style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 12px;">
+                <option value="">-- Select Schema --</option>
+              </select>
+              <button class="btn-primary" id="applySchema">✓ Apply Schema to Data</button>
+              <button class="btn-secondary" id="clearSchemas">✕ Clear All Schemas</button>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -481,6 +505,66 @@ class ASN1ControlPanel extends HTMLElement {
         }));
       }
     });
+
+    // Schema management
+    const importSchemaBtn = this.shadowRoot.getElementById("importSchema");
+    const schemaFileInput = this.shadowRoot.getElementById("schemaFileInput");
+    const schemaSelector = this.shadowRoot.getElementById("schemaSelector");
+    const applySchemaBtn = this.shadowRoot.getElementById("applySchema");
+    const clearSchemasBtn = this.shadowRoot.getElementById("clearSchemas");
+
+    importSchemaBtn.addEventListener("click", () => {
+      schemaFileInput.click();
+    });
+
+    schemaFileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const schema = JSON.parse(event.target.result);
+            this.dispatchEvent(new CustomEvent("schemaImport", {
+              detail: { schema: schema },
+              bubbles: true,
+              composed: true
+            }));
+            this.showStatus(`Schema "${schema.name || 'Unnamed'}" imported successfully!`, "success");
+          } catch (error) {
+            this.showStatus("Error importing schema: " + error.message, "error");
+          }
+        };
+        reader.readAsText(file);
+      }
+      // Reset file input
+      schemaFileInput.value = '';
+    });
+
+    schemaSelector.addEventListener("change", (e) => {
+      const schemaName = e.target.value;
+      if (schemaName) {
+        this.dispatchEvent(new CustomEvent("schemaSelected", {
+          detail: { schemaName: schemaName },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    });
+
+    applySchemaBtn.addEventListener("click", () => {
+      this.dispatchEvent(new CustomEvent("applySchema", {
+        bubbles: true,
+        composed: true
+      }));
+    });
+
+    clearSchemasBtn.addEventListener("click", () => {
+      this.dispatchEvent(new CustomEvent("clearSchemas", {
+        bubbles: true,
+        composed: true
+      }));
+      this.updateSchemaList([]);
+    });
   }
 
   updateRulesDisplay(config) {
@@ -535,6 +619,48 @@ class ASN1ControlPanel extends HTMLElement {
     });
 
     rulesContainer.innerHTML = html;
+  }
+
+  updateSchemaList(schemas) {
+    const schemaList = this.shadowRoot.getElementById("schemaList");
+    const schemaControls = this.shadowRoot.getElementById("schemaControls");
+    const schemaSelector = this.shadowRoot.getElementById("schemaSelector");
+
+    if (!schemas || schemas.length === 0) {
+      schemaList.innerHTML = '<div class="empty-state" style="padding: 20px; font-size: 12px;">No schemas loaded</div>';
+      schemaControls.style.display = 'none';
+      return;
+    }
+
+    // Show controls
+    schemaControls.style.display = 'block';
+
+    // Build schema list display
+    let html = '';
+    schemas.forEach((schema, index) => {
+      html += `
+        <div style="margin-bottom: 12px; padding: 12px; background: #f9f9f9; border-radius: 6px; border-left: 4px solid #667eea;">
+          <div style="font-weight: 600; color: #667eea; margin-bottom: 4px; font-size: 13px;">
+            ${schema.name}
+          </div>
+          <div style="font-size: 11px; color: #666;">
+            ${schema.version ? `Version: ${schema.version}` : 'No version specified'}
+          </div>
+          ${schema.description ? `<div style="font-size: 11px; color: #666; margin-top: 4px;">${schema.description}</div>` : ''}
+        </div>
+      `;
+    });
+
+    schemaList.innerHTML = html;
+
+    // Update selector dropdown
+    schemaSelector.innerHTML = '<option value="">-- Select Schema --</option>';
+    schemas.forEach(schema => {
+      const option = document.createElement('option');
+      option.value = schema.name;
+      option.textContent = schema.name;
+      schemaSelector.appendChild(option);
+    });
   }
 
   showStatus(message, type = "success") {

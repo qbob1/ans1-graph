@@ -15,6 +15,8 @@ class ASN1GraphViewer extends HTMLElement {
     this.nodeSeparation = 80; // Default vertical spacing
     this.levelSeparation = 200; // Default horizontal spacing
     this.constraints = {}; // Store constraints by node path
+    this.schemas = []; // Store loaded ASN.1 schemas
+    this.activeSchema = null; // Currently active schema
   }
 
   connectedCallback() {
@@ -434,6 +436,183 @@ class ASN1GraphViewer extends HTMLElement {
         composed: true
       }));
     }
+  }
+
+  /**
+   * Import an ASN.1 schema
+   * @param {Object} schema - Schema definition
+   * @returns {boolean} Success status
+   */
+  importSchema(schema) {
+    if (!schema || !schema.name) {
+      console.error("Invalid schema: must have a 'name' property");
+      return false;
+    }
+
+    // Check if schema with same name already exists
+    const existingIndex = this.schemas.findIndex(s => s.name === schema.name);
+    if (existingIndex >= 0) {
+      // Replace existing schema
+      this.schemas[existingIndex] = schema;
+    } else {
+      // Add new schema
+      this.schemas.push(schema);
+    }
+
+    this.dispatchEvent(new CustomEvent("schemaImported", {
+      detail: { schema: schema },
+      bubbles: true,
+      composed: true
+    }));
+
+    return true;
+  }
+
+  /**
+   * Get all loaded schemas
+   * @returns {Array} List of schemas
+   */
+  getSchemas() {
+    return this.schemas;
+  }
+
+  /**
+   * Set the active schema
+   * @param {string} schemaName - Name of the schema to activate
+   */
+  setActiveSchema(schemaName) {
+    const schema = this.schemas.find(s => s.name === schemaName);
+    if (schema) {
+      this.activeSchema = schema;
+      this.dispatchEvent(new CustomEvent("activeSchemaChanged", {
+        detail: { schema: schema },
+        bubbles: true,
+        composed: true
+      }));
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Apply active schema to the current data
+   */
+  applyActiveSchema() {
+    if (!this.activeSchema || !this.data) {
+      return false;
+    }
+
+    // Apply schema to data
+    this.applySchemaToData(this.data, this.activeSchema.root);
+
+    // Re-render with schema-applied names
+    this.renderJson(this.data);
+
+    this.dispatchEvent(new CustomEvent("schemaApplied", {
+      detail: { schema: this.activeSchema },
+      bubbles: true,
+      composed: true
+    }));
+
+    return true;
+  }
+
+  /**
+   * Apply schema to ASN.1 data recursively
+   * @param {Object} data - ASN.1 data object
+   * @param {Object} schemaDef - Schema definition
+   */
+  applySchemaToData(data, schemaDef) {
+    if (!data || !schemaDef) {
+      return;
+    }
+
+    // Handle array data
+    if (Array.isArray(data)) {
+      // Apply schema to each element if schema has itemSchema
+      if (schemaDef.itemSchema) {
+        data.forEach(item => this.applySchemaToData(item, schemaDef.itemSchema));
+      }
+      return;
+    }
+
+    // Handle object data
+    if (typeof data === 'object') {
+      // If schema has a name, apply it to the data
+      if (schemaDef.name) {
+        data.name = schemaDef.name;
+      }
+
+      // Apply constraints from schema
+      if (schemaDef.constraints) {
+        // Store constraints for this node
+        // We need the path, which we'll compute from the data structure
+        // For now, we'll add it as a property on the data object
+        data._schemaConstraints = schemaDef.constraints;
+      }
+
+      // If schema has fields, match them to sub-elements
+      if (schemaDef.fields && Array.isArray(schemaDef.fields) && data.sub && Array.isArray(data.sub)) {
+        // Match by tag class and number, or by position
+        data.sub.forEach((subItem, index) => {
+          // Try to match by tag
+          let matchingField = null;
+
+          if (subItem.tagClass !== undefined && subItem.tagNumber !== undefined) {
+            matchingField = schemaDef.fields.find(field =>
+              field.tag &&
+              field.tag.class === subItem.tagClass &&
+              field.tag.number === subItem.tagNumber
+            );
+          }
+
+          // Fall back to position matching
+          if (!matchingField && schemaDef.fields[index]) {
+            matchingField = schemaDef.fields[index];
+          }
+
+          if (matchingField) {
+            // Apply field name
+            subItem.name = matchingField.name;
+
+            // Apply field constraints
+            if (matchingField.constraints) {
+              subItem._schemaConstraints = matchingField.constraints;
+            }
+
+            // Recursively apply if field has nested structure
+            if (matchingField.fields) {
+              this.applySchemaToData(subItem, matchingField);
+            }
+          }
+        });
+      }
+
+      // Recursively apply to sub-elements
+      if (data.sub && Array.isArray(data.sub)) {
+        data.sub.forEach(subItem => {
+          // Continue applying current schema structure
+          if (schemaDef.fields) {
+            // Already handled above
+          } else if (schemaDef.itemSchema) {
+            // For repeated elements
+            this.applySchemaToData(subItem, schemaDef.itemSchema);
+          }
+        });
+      }
+    }
+  }
+
+  /**
+   * Clear all schemas
+   */
+  clearSchemas() {
+    this.schemas = [];
+    this.activeSchema = null;
+    this.dispatchEvent(new CustomEvent("schemasCleared", {
+      bubbles: true,
+      composed: true
+    }));
   }
 
   /**
@@ -874,6 +1053,9 @@ class ASN1GraphViewer extends HTMLElement {
     // Collect all OIDs from the payload
     const allOIDs = this.collectAllOIDs();
 
+    // Get constraints for this node
+    const currentConstraints = this.getNodeConstraints(nodeData.data.path) || {};
+
     // Build modal content
     const nodeAlias = currentConstraints.alias || null;
 
@@ -997,7 +1179,6 @@ class ASN1GraphViewer extends HTMLElement {
     }
 
     // Add constraints section
-    const currentConstraints = this.getNodeConstraints(nodeData.data.path) || {};
     html += `
       <div class="field-group" style="margin-top: 24px; border-top: 2px solid #e0e0e0; padding-top: 16px;">
         <div class="field-label" style="font-size: 14px; margin-bottom: 12px;">
