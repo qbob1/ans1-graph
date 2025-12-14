@@ -14,6 +14,7 @@ class ASN1GraphViewer extends HTMLElement {
     this.showEdgeLabels = false; // Default: hide edge labels
     this.nodeSeparation = 80; // Default vertical spacing
     this.levelSeparation = 200; // Default horizontal spacing
+    this.constraints = {}; // Store constraints by node path
   }
 
   connectedCallback() {
@@ -250,6 +251,21 @@ class ASN1GraphViewer extends HTMLElement {
         .btn-secondary:hover {
           background: #e0e0e0;
         }
+
+        .btn-small {
+          padding: 4px 8px;
+          border: none;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 500;
+          cursor: pointer;
+          background: #667eea;
+          color: white;
+        }
+
+        .btn-small:hover {
+          background: #5568d3;
+        }
       </style>
       <input type="text" id="searchBar" placeholder="🔍 Search nodes..." />
       <div id="container"></div>
@@ -365,6 +381,119 @@ class ASN1GraphViewer extends HTMLElement {
     if (this.data) {
       this.renderJson(this.data);
     }
+  }
+
+  /**
+   * Add or update constraints for a node
+   * @param {string} nodePath - The node path
+   * @param {Object} constraints - Constraint configuration
+   */
+  setNodeConstraints(nodePath, constraints) {
+    this.constraints[nodePath] = constraints;
+    this.dispatchEvent(new CustomEvent("constraintsChanged", {
+      detail: { path: nodePath, constraints: constraints },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  /**
+   * Get constraints for a node
+   * @param {string} nodePath - The node path
+   * @returns {Object} The constraints or null
+   */
+  getNodeConstraints(nodePath) {
+    return this.constraints[nodePath] || null;
+  }
+
+  /**
+   * Export all constraints as configuration
+   * @returns {Object} Configuration object
+   */
+  exportConfiguration() {
+    return {
+      version: "1.0",
+      constraints: this.constraints,
+      metadata: {
+        exportDate: new Date().toISOString(),
+        nodeCount: Object.keys(this.constraints).length
+      }
+    };
+  }
+
+  /**
+   * Import constraints from configuration
+   * @param {Object} config - Configuration object
+   */
+  importConfiguration(config) {
+    if (config && config.constraints) {
+      this.constraints = config.constraints;
+      this.dispatchEvent(new CustomEvent("configurationImported", {
+        detail: { config: config },
+        bubbles: true,
+        composed: true
+      }));
+    }
+  }
+
+  /**
+   * Validate a value against constraints
+   * @param {*} value - The value to validate
+   * @param {Object} constraints - The constraints to check against
+   * @returns {Object} Validation result {valid: boolean, errors: []}
+   */
+  validateValue(value, constraints) {
+    const errors = [];
+
+    if (!constraints) {
+      return { valid: true, errors: [] };
+    }
+
+    // Required check
+    if (constraints.required && (value === null || value === undefined || value === '')) {
+      errors.push('This field is required');
+    }
+
+    // Type-specific validations
+    if (value !== null && value !== undefined && value !== '') {
+      // Min/Max for numbers
+      if (constraints.min !== undefined && Number(value) < constraints.min) {
+        errors.push(`Value must be at least ${constraints.min}`);
+      }
+      if (constraints.max !== undefined && Number(value) > constraints.max) {
+        errors.push(`Value must be at most ${constraints.max}`);
+      }
+
+      // Pattern for strings
+      if (constraints.pattern && typeof value === 'string') {
+        const regex = new RegExp(constraints.pattern);
+        if (!regex.test(value)) {
+          errors.push(`Value must match pattern: ${constraints.pattern}`);
+        }
+      }
+
+      // Enum values
+      if (constraints.enum && Array.isArray(constraints.enum)) {
+        if (!constraints.enum.includes(value)) {
+          errors.push(`Value must be one of: ${constraints.enum.join(', ')}`);
+        }
+      }
+
+      // Min/Max length for strings
+      if (typeof value === 'string') {
+        if (constraints.minLength !== undefined && value.length < constraints.minLength) {
+          errors.push(`Length must be at least ${constraints.minLength} characters`);
+        }
+        if (constraints.maxLength !== undefined && value.length > constraints.maxLength) {
+          errors.push(`Length must be at most ${constraints.maxLength} characters`);
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors: errors
+    };
   }
 
   /**
@@ -844,6 +973,65 @@ class ASN1GraphViewer extends HTMLElement {
       `;
     }
 
+    // Add constraints section
+    const currentConstraints = this.getNodeConstraints(nodeData.data.path) || {};
+    html += `
+      <div class="field-group" style="margin-top: 24px; border-top: 2px solid #e0e0e0; padding-top: 16px;">
+        <div class="field-label" style="font-size: 14px; margin-bottom: 12px;">
+          Field Constraints
+          <button class="btn-small" id="toggleConstraints" style="float: right; font-size: 11px; padding: 4px 8px;">
+            ${Object.keys(currentConstraints).length > 0 ? 'Edit' : 'Add'}
+          </button>
+        </div>
+        <div id="constraintsSection" style="display: none;">
+    `;
+
+    if (editableProps.length > 0) {
+      editableProps.forEach((prop) => {
+        const fieldConstraints = currentConstraints[prop.key] || {};
+        html += `
+          <div class="constraint-field" style="margin-bottom: 16px; padding: 12px; background: #f9f9f9; border-radius: 6px;">
+            <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">${prop.key}</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+              <label>
+                <input type="checkbox" data-constraint-field="${prop.key}" data-constraint-type="required" ${fieldConstraints.required ? 'checked' : ''}>
+                Required
+              </label>
+              <label>
+                Min:
+                <input type="number" style="width: 60px; padding: 2px;" data-constraint-field="${prop.key}" data-constraint-type="min" value="${fieldConstraints.min || ''}" placeholder="-">
+              </label>
+              <label>
+                Max:
+                <input type="number" style="width: 60px; padding: 2px;" data-constraint-field="${prop.key}" data-constraint-type="max" value="${fieldConstraints.max || ''}" placeholder="-">
+              </label>
+              <label>
+                Min Length:
+                <input type="number" style="width: 60px; padding: 2px;" data-constraint-field="${prop.key}" data-constraint-type="minLength" value="${fieldConstraints.minLength || ''}" placeholder="-">
+              </label>
+              <label>
+                Max Length:
+                <input type="number" style="width: 60px; padding: 2px;" data-constraint-field="${prop.key}" data-constraint-type="maxLength" value="${fieldConstraints.maxLength || ''}" placeholder="-">
+              </label>
+              <label style="grid-column: 1 / -1;">
+                Pattern (regex):
+                <input type="text" style="width: 100%; padding: 4px;" data-constraint-field="${prop.key}" data-constraint-type="pattern" value="${fieldConstraints.pattern || ''}" placeholder="^[A-Z]+$">
+              </label>
+              <label style="grid-column: 1 / -1;">
+                Enum (comma-separated):
+                <input type="text" style="width: 100%; padding: 4px;" data-constraint-field="${prop.key}" data-constraint-type="enum" value="${fieldConstraints.enum ? fieldConstraints.enum.join(',') : ''}" placeholder="value1,value2,value3">
+              </label>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
     // Add raw data display (excluding 'sub' array to show only this node's data)
     if (nodeData.data.rawData) {
       const dataToShow = {...nodeData.data.rawData};
@@ -861,6 +1049,7 @@ class ASN1GraphViewer extends HTMLElement {
     html += `
       <div class="modal-actions">
         <button class="btn btn-secondary" id="cancelEdit">Close</button>
+        ${editableProps.length > 0 ? '<button class="btn btn-primary" id="saveConstraints" style="display: none;">Save Constraints</button>' : ''}
         ${editableProps.length > 0 ? '<button class="btn btn-primary" id="saveEdit">Save Changes</button>' : ''}
       </div>
     `;
@@ -883,6 +1072,102 @@ class ASN1GraphViewer extends HTMLElement {
         self.saveNodeEdits(nodeData);
       });
     }
+
+    // Toggle constraints section
+    const toggleConstraintsBtn = this.shadowRoot.getElementById("toggleConstraints");
+    const constraintsSection = this.shadowRoot.getElementById("constraintsSection");
+    const saveConstraintsBtn = this.shadowRoot.getElementById("saveConstraints");
+
+    if (toggleConstraintsBtn) {
+      toggleConstraintsBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = constraintsSection.style.display !== 'none';
+        constraintsSection.style.display = isVisible ? 'none' : 'block';
+        if (saveConstraintsBtn) {
+          saveConstraintsBtn.style.display = isVisible ? 'none' : 'inline-block';
+        }
+        if (saveBtn) {
+          saveBtn.style.display = isVisible ? 'inline-block' : 'none';
+        }
+        toggleConstraintsBtn.textContent = isVisible ? (Object.keys(currentConstraints).length > 0 ? 'Edit' : 'Add') : 'Hide';
+      });
+    }
+
+    // Save constraints
+    if (saveConstraintsBtn) {
+      saveConstraintsBtn.addEventListener("click", () => {
+        self.saveNodeConstraintsFromModal(nodeData);
+      });
+    }
+  }
+
+  /**
+   * Save constraints from modal
+   */
+  saveNodeConstraintsFromModal(nodeData) {
+    const modalBody = this.shadowRoot.getElementById("modalBody");
+    const constraintInputs = modalBody.querySelectorAll("[data-constraint-field]");
+
+    const newConstraints = {};
+
+    constraintInputs.forEach((input) => {
+      const field = input.dataset.constraintField;
+      const type = input.dataset.constraintType;
+
+      if (!newConstraints[field]) {
+        newConstraints[field] = {};
+      }
+
+      if (type === 'required') {
+        newConstraints[field].required = input.checked;
+      } else if (type === 'enum') {
+        const value = input.value.trim();
+        if (value) {
+          newConstraints[field].enum = value.split(',').map(v => v.trim()).filter(v => v);
+        }
+      } else {
+        const value = input.value.trim();
+        if (value) {
+          if (type === 'min' || type === 'max' || type === 'minLength' || type === 'maxLength') {
+            newConstraints[field][type] = Number(value);
+          } else {
+            newConstraints[field][type] = value;
+          }
+        }
+      }
+    });
+
+    // Remove empty constraint objects
+    Object.keys(newConstraints).forEach(key => {
+      if (Object.keys(newConstraints[key]).length === 0) {
+        delete newConstraints[key];
+      }
+    });
+
+    // Save constraints
+    this.setNodeConstraints(nodeData.data.path, newConstraints);
+
+    // Close constraints section
+    const constraintsSection = this.shadowRoot.getElementById("constraintsSection");
+    const toggleConstraintsBtn = this.shadowRoot.getElementById("toggleConstraints");
+    const saveConstraintsBtn = this.shadowRoot.getElementById("saveConstraints");
+    const saveBtn = this.shadowRoot.getElementById("saveEdit");
+
+    if (constraintsSection) {
+      constraintsSection.style.display = 'none';
+    }
+    if (saveConstraintsBtn) {
+      saveConstraintsBtn.style.display = 'none';
+    }
+    if (saveBtn) {
+      saveBtn.style.display = 'inline-block';
+    }
+    if (toggleConstraintsBtn) {
+      toggleConstraintsBtn.textContent = Object.keys(newConstraints).length > 0 ? 'Edit' : 'Add';
+    }
+
+    // Show success message
+    alert(`Constraints saved for node: ${nodeData.data.path}`);
   }
 
   /**
@@ -893,8 +1178,42 @@ class ASN1GraphViewer extends HTMLElement {
     // Get all input types: textareas, selects, and inputs
     const inputs = modalBody.querySelectorAll("textarea[data-prop-key], select[data-prop-key], input[data-prop-key]");
 
+    // Get constraints for this node
+    const nodeConstraints = this.getNodeConstraints(nodeData.data.path);
+    const validationErrors = [];
+
     let contentChanged = false;
     let newContentValue = null;
+
+    // Validate all inputs first
+    inputs.forEach((input) => {
+      if (input.hasAttribute('readonly') || input.hasAttribute('disabled')) {
+        return;
+      }
+
+      const key = input.dataset.propKey;
+      let value;
+
+      if (input.type === 'checkbox') {
+        value = input.checked ? 'true' : 'false';
+      } else {
+        value = input.value;
+      }
+
+      // Validate if constraints exist for this field
+      if (nodeConstraints && nodeConstraints[key]) {
+        const validation = this.validateValue(value, nodeConstraints[key]);
+        if (!validation.valid) {
+          validationErrors.push(`${key}: ${validation.errors.join(', ')}`);
+        }
+      }
+    });
+
+    // Show validation errors and abort if any
+    if (validationErrors.length > 0) {
+      alert(`Validation errors:\n\n${validationErrors.join('\n')}`);
+      return;
+    }
 
     // Only update properties that belong to THIS node, not children
     inputs.forEach((input) => {

@@ -158,6 +158,23 @@
         graphViewer.setSpacing(event.detail.spacing, event.detail.spacing * 2.5);
       });
 
+      // Listen for configuration export
+      controlPanel.addEventListener("exportConfiguration", () => {
+        const config = graphViewer.exportConfiguration();
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `asn1-constraints-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      // Listen for configuration import
+      controlPanel.addEventListener("importConfiguration", (event) => {
+        graphViewer.importConfiguration(event.detail.config);
+      });
+
       // Handle window resize
       window.addEventListener("resize", () => {
         graphViewer.setAttribute("width", window.innerWidth);

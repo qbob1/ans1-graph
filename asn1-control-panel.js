@@ -356,6 +356,16 @@ class ASN1ControlPanel extends HTMLElement {
             <button class="btn-primary" id="saveLabels" style="display: none;">✓ Apply Labels</button>
             <button class="btn-secondary" id="clearLabels" style="display: none;">✕ Clear All</button>
           </div>
+
+          <div class="section">
+            <div class="section-title">Configuration</div>
+            <p style="font-size: 12px; color: #666; margin-bottom: 12px;">
+              Export and import node constraints configuration
+            </p>
+            <button class="btn-primary" id="exportConfig">📥 Export Configuration</button>
+            <button class="btn-secondary" id="importConfig">📤 Import Configuration</button>
+            <input type="file" id="configFileInput" accept=".json" style="display: none;">
+          </div>
         </div>
       </div>
     `;
@@ -401,6 +411,46 @@ class ASN1ControlPanel extends HTMLElement {
         bubbles: true,
         composed: true
       }));
+    });
+
+    // Export configuration
+    const exportConfigBtn = this.shadowRoot.getElementById("exportConfig");
+    exportConfigBtn.addEventListener("click", () => {
+      this.dispatchEvent(new CustomEvent("exportConfiguration", {
+        bubbles: true,
+        composed: true
+      }));
+    });
+
+    // Import configuration
+    const importConfigBtn = this.shadowRoot.getElementById("importConfig");
+    const configFileInput = this.shadowRoot.getElementById("configFileInput");
+
+    importConfigBtn.addEventListener("click", () => {
+      configFileInput.click();
+    });
+
+    configFileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const config = JSON.parse(event.target.result);
+            this.dispatchEvent(new CustomEvent("importConfiguration", {
+              detail: { config: config },
+              bubbles: true,
+              composed: true
+            }));
+            this.showStatus("Configuration imported successfully!", "success");
+          } catch (error) {
+            this.showStatus("Error importing configuration: " + error.message, "error");
+          }
+        };
+        reader.readAsText(file);
+      }
+      // Reset file input
+      configFileInput.value = '';
     });
   }
 
