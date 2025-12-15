@@ -15,6 +15,7 @@ class ErlangASN1Analyzer {
 
     // Extract record definitions from .hrl files
     const records = this.extractRecords(erlangCode);
+    console.log(`📝 Extracted ${records.length} record definitions from ${profileName}`);
 
     // Extract type information from .erl comment annotations
     const typeAnnotations = this.extractTypeAnnotations(erlangCode);
@@ -24,9 +25,14 @@ class ErlangASN1Analyzer {
 
     // Merge type annotations into records
     if (Object.keys(typeAnnotations).length > 0) {
+      console.log(`📊 Found type annotations for ${Object.keys(typeAnnotations).length} records`);
+
       records.forEach(record => {
         const recordAnnotations = typeAnnotations[record.name];
         if (recordAnnotations) {
+          const annotationCount = Object.keys(recordAnnotations).length;
+          console.log(`  ✓ Merging ${annotationCount} type annotations into ${record.name}`);
+
           record.fields.forEach(field => {
             const annotation = recordAnnotations[field.name];
             if (annotation) {
@@ -44,8 +50,12 @@ class ErlangASN1Analyzer {
               }
             }
           });
+        } else {
+          console.log(`  ⚠️ No type annotations found for ${record.name} (fields will default to OCTET STRING)`);
         }
       });
+    } else {
+      console.log(`⚠️ No type annotations extracted from .erl file - all fields will use inferred or default types`);
     }
 
     // Merge records and types
@@ -319,10 +329,24 @@ class ErlangASN1Analyzer {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
-      // Detect record context from function names like dec_PEHeader/2 or enc_PEHeader/2
-      const recordMatch = line.match(/^(?:dec|enc)_['"]?(\w+(?:-\w+)*)['"]?\/\d/);
-      if (recordMatch) {
-        currentRecord = recordMatch[1];
+      // Detect record context from section headers like "%%  PEHeader" or "%%  PE-Dummy"
+      // These appear after %%==== separator lines
+      const headerMatch = line.match(/^%%\s+([\w-]+(?:_[\w-]+)*)$/);
+      if (headerMatch) {
+        // Extract record name, handling underscores in compound names
+        currentRecord = headerMatch[1];
+        // Normalize underscores to hyphens for matching with record names
+        // e.g., "ProfileHeader_eUICC-Mandatory-AIDs" -> keep as is for now
+        if (!annotations[currentRecord]) {
+          annotations[currentRecord] = {};
+        }
+        continue;
+      }
+
+      // Also detect from function names as fallback
+      const funcMatch = line.match(/^(?:dec|enc)_([\w-]+)\s*\(/);
+      if (funcMatch) {
+        currentRecord = funcMatch[1];
         if (!annotations[currentRecord]) {
           annotations[currentRecord] = {};
         }
@@ -331,15 +355,25 @@ class ErlangASN1Analyzer {
 
       // Extract field type annotations
       // Format: %% attribute fieldName(tagNumber) with type TYPE [OPTIONAL]
-      const attrMatch = line.match(/%+\s*attribute\s+['"]?([\w-]+)['"]?\s*\((\d+)\)\s+with\s+type\s+([\w\s]+?)(?:\s+(OPTIONAL|DEFAULT))?$/i);
+      // TYPE can be multi-word like "OCTET STRING" or "SEQUENCE OF"
+      const attrMatch = line.match(/^%%+\s*attribute\s+([\w-]+)\((\d+)\)\s+with\s+type\s+(.+?)$/i);
       if (attrMatch && currentRecord) {
         const fieldName = attrMatch[1];
         const tagNumber = parseInt(attrMatch[2]);
         let fieldType = attrMatch[3].trim();
-        const optional = attrMatch[4] !== undefined;
 
-        // Clean up type name
+        // Check if OPTIONAL or DEFAULT at the end
+        let optional = false;
+        if (fieldType.match(/\s+(OPTIONAL|DEFAULT)$/i)) {
+          optional = true;
+          fieldType = fieldType.replace(/\s+(OPTIONAL|DEFAULT)$/i, '').trim();
+        }
+
+        // Clean up type name (normalize multiple spaces to single space)
         fieldType = fieldType.replace(/\s+/g, ' ');
+
+        // Map type names to standard ASN.1 types
+        fieldType = this.normalizeASN1Type(fieldType);
 
         if (!annotations[currentRecord]) {
           annotations[currentRecord] = {};
@@ -354,6 +388,36 @@ class ErlangASN1Analyzer {
     }
 
     return annotations;
+  }
+
+  /**
+   * Normalize ASN.1 type names from Erlang comments
+   * @param {string} typeName - Type name from comment
+   * @returns {string} Normalized ASN.1 type
+   */
+  static normalizeASN1Type(typeName) {
+    // Handle common variations
+    const typeMap = {
+      'NULL': 'NULL',
+      'INTEGER': 'INTEGER',
+      'BOOLEAN': 'BOOLEAN',
+      'OCTET STRING': 'OCTET STRING',
+      'BIT STRING': 'BIT STRING',
+      'UTF8String': 'UTF8String',
+      'IA5String': 'IA5String',
+      'PrintableString': 'PrintableString',
+      'GeneralizedTime': 'GeneralizedTime',
+      'UTCTime': 'UTCTime',
+      'OBJECT IDENTIFIER': 'OBJECT IDENTIFIER',
+      'SEQUENCE': 'SEQUENCE',
+      'SEQUENCE OF': 'SEQUENCE OF',
+      'SET': 'SET',
+      'SET OF': 'SET OF',
+      'CHOICE': 'CHOICE',
+      'ENUMERATED': 'ENUMERATED'
+    };
+
+    return typeMap[typeName] || typeName;
   }
 
   /**
