@@ -985,7 +985,7 @@ class ASN1ControlPanel extends HTMLElement {
 
         reader.onload = (event) => {
           resolve({
-            name: file.name.replace(/\.(erl|hrl)$/i, ''),
+            name: file.name,  // Keep extension so analyzer can detect .erl vs .hrl
             content: event.target.result
           });
         };
@@ -1001,8 +1001,12 @@ class ASN1ControlPanel extends HTMLElement {
     Promise.all(filePromises)
       .then(fileContents => {
         try {
+          console.log(`📁 Processing ${fileContents.length} file(s):`, fileContents.map(f => f.name));
+
           // Analyze all profiles
           const schemas = window.ErlangASN1Analyzer.analyzeProfiles(fileContents);
+
+          console.log(`✅ Analysis complete: ${schemas.length} schema(s) generated`);
 
           if (schemas.length === 0) {
             this.showStatus("No valid profiles found in files", "error");
@@ -1012,6 +1016,7 @@ class ASN1ControlPanel extends HTMLElement {
           // Import each schema
           let successCount = 0;
           schemas.forEach(schema => {
+            console.log(`📤 Dispatching schema: ${schema.name} with ${schema.allTypes.length} types`);
             this.dispatchEvent(new CustomEvent("schemaImport", {
               detail: { schema: schema },
               bubbles: true,
