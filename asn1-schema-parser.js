@@ -11,14 +11,15 @@ class ASN1SchemaParser {
    * @returns {Object} Parsed schema in JSON format
    */
   static parse(schemaText, schemaName = 'Imported Schema') {
-    const lines = schemaText.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('--'));
+    // Remove all comments (both full-line and inline)
+    const cleanedText = this.removeComments(schemaText);
 
     // Extract module name if present
-    const moduleMatch = schemaText.match(/(\w+)\s+DEFINITIONS\s+::=\s+BEGIN/);
+    const moduleMatch = cleanedText.match(/(\w+)\s+DEFINITIONS\s+::=\s+BEGIN/);
     const moduleName = moduleMatch ? moduleMatch[1] : schemaName;
 
     // Find type definitions
-    const typeDefinitions = this.extractTypeDefinitions(schemaText);
+    const typeDefinitions = this.extractTypeDefinitions(cleanedText);
 
     if (typeDefinitions.length === 0) {
       throw new Error('No type definitions found in schema');
@@ -34,6 +35,26 @@ class ASN1SchemaParser {
       root: root,
       allTypes: typeDefinitions
     };
+  }
+
+  /**
+   * Remove comments from ASN.1 text
+   * @param {string} text - Raw ASN.1 text
+   * @returns {string} Text with comments removed
+   */
+  static removeComments(text) {
+    // Remove full-line comments and inline comments
+    const lines = text.split('\n');
+    const cleanedLines = lines.map(line => {
+      // Remove inline comments (everything after --)
+      const commentIndex = line.indexOf('--');
+      if (commentIndex !== -1) {
+        return line.substring(0, commentIndex);
+      }
+      return line;
+    }).filter(line => line.trim() !== '');
+
+    return cleanedLines.join('\n');
   }
 
   /**

@@ -373,6 +373,59 @@ class ASN1ControlPanel extends HTMLElement {
           font-size: 11px;
           margin-top: 4px;
         }
+
+        .schema-field-clickable {
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .schema-field-clickable:hover {
+          background: #e8f4f8 !important;
+        }
+
+        /* Field Detail Modal */
+        .field-detail-modal {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          z-index: 2002;
+          width: 600px;
+          max-width: 90vw;
+          max-height: 80vh;
+          overflow-y: auto;
+        }
+
+        .asn-definition {
+          background: #2c3e50;
+          color: #ecf0f1;
+          padding: 16px;
+          border-radius: 6px;
+          font-family: 'Courier New', monospace;
+          font-size: 13px;
+          line-height: 1.6;
+          overflow-x: auto;
+        }
+
+        .asn-keyword {
+          color: #3498db;
+          font-weight: bold;
+        }
+
+        .asn-type {
+          color: #e74c3c;
+        }
+
+        .asn-tag {
+          color: #2ecc71;
+        }
+
+        .asn-field-name {
+          color: #f39c12;
+        }
       </style>
 
       <button class="toggle-btn" id="toggleBtn" title="Open Control Panel">☰</button>
@@ -481,6 +534,18 @@ class ASN1ControlPanel extends HTMLElement {
           <button id="closeSchemaViewer" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px;">✕</button>
         </div>
         <div id="schemaViewerBody" style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+          <!-- Content populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Field Detail Modal -->
+      <div id="fieldDetailOverlay" class="modal-overlay" style="display: none; z-index: 2001;"></div>
+      <div id="fieldDetailModal" class="field-detail-modal" style="display: none;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 18px; font-weight: 600;">Field Definition</div>
+          <button id="closeFieldDetail" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px;">✕</button>
+        </div>
+        <div id="fieldDetailBody" style="padding: 20px;">
           <!-- Content populated dynamically -->
         </div>
       </div>
@@ -659,6 +724,18 @@ class ASN1ControlPanel extends HTMLElement {
 
     schemaViewerOverlay.addEventListener("click", () => {
       this.hideSchemaViewer();
+    });
+
+    // Field detail modal
+    const closeFieldDetail = this.shadowRoot.getElementById("closeFieldDetail");
+    const fieldDetailOverlay = this.shadowRoot.getElementById("fieldDetailOverlay");
+
+    closeFieldDetail.addEventListener("click", () => {
+      this.hideFieldDetail();
+    });
+
+    fieldDetailOverlay.addEventListener("click", () => {
+      this.hideFieldDetail();
     });
   }
 
@@ -908,13 +985,27 @@ class ASN1ControlPanel extends HTMLElement {
 
     body.innerHTML = html;
 
+    // Attach click handlers to clickable fields
+    const clickableFields = body.querySelectorAll('.schema-field-clickable');
+    clickableFields.forEach(fieldEl => {
+      fieldEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const fieldId = fieldEl.dataset.fieldId;
+        if (this.fieldDataMap && this.fieldDataMap.has(fieldId)) {
+          this.showFieldDetail(this.fieldDataMap.get(fieldId));
+        }
+      });
+    });
+
     // Show modal
     modal.style.display = 'block';
     overlay.style.display = 'block';
   }
 
-  renderSchemaStructure(structure, depth = 0) {
+  renderSchemaStructure(structure, depth = 0, parentName = '') {
     const indent = depth * 20;
+    const fieldId = `field_${Math.random().toString(36).substr(2, 9)}`;
+
     let html = `
       <div style="margin-left: ${indent}px; margin-bottom: 12px;">
         <div style="font-weight: 600; color: #333; margin-bottom: 8px;">
@@ -926,12 +1017,25 @@ class ASN1ControlPanel extends HTMLElement {
     // Show fields
     if (structure.fields && structure.fields.length > 0) {
       html += '<div style="margin-left: 20px;">';
-      structure.fields.forEach(field => {
-        html += '<div class="schema-field">';
+      structure.fields.forEach((field, index) => {
+        const uniqueFieldId = `${fieldId}_${index}`;
+        html += `<div class="schema-field schema-field-clickable" data-field-id="${uniqueFieldId}">`;
         html += `<span class="schema-field-name">${field.name}</span>`;
 
+        // Show tag prominently
         if (field.tag) {
-          html += ` <span class="schema-field-tag">[${field.tag.class}:${field.tag.number}]</span>`;
+          const tagClass = field.tag.class;
+          const tagNumber = field.tag.number;
+          let tagDisplay = '';
+
+          switch(tagClass) {
+            case 0: tagDisplay = `UNIVERSAL ${tagNumber}`; break;
+            case 1: tagDisplay = `APPLICATION ${tagNumber}`; break;
+            case 2: tagDisplay = `[${tagNumber}]`; break; // Context-specific
+            case 3: tagDisplay = `PRIVATE ${tagNumber}`; break;
+          }
+
+          html += ` <span class="schema-field-tag" style="font-weight: bold; font-size: 12px;">${tagDisplay}</span>`;
         }
 
         html += ` <span class="schema-field-type">${field.type}</span>`;
@@ -954,9 +1058,17 @@ class ASN1ControlPanel extends HTMLElement {
           }
         }
 
+        html += `<div style="font-size: 10px; color: #999; margin-top: 4px;">Click to view ASN.1 definition</div>`;
+
+        // Store field data for click handler
+        if (!this.fieldDataMap) {
+          this.fieldDataMap = new Map();
+        }
+        this.fieldDataMap.set(uniqueFieldId, field);
+
         // Recursively render nested fields
         if (field.fields) {
-          html += this.renderSchemaStructure(field, depth + 1);
+          html += this.renderSchemaStructure(field, depth + 1, field.name);
         }
 
         html += '</div>';
@@ -971,6 +1083,199 @@ class ASN1ControlPanel extends HTMLElement {
   hideSchemaViewer() {
     const modal = this.shadowRoot.getElementById("schemaViewerModal");
     const overlay = this.shadowRoot.getElementById("schemaViewerOverlay");
+
+    modal.style.display = 'none';
+    overlay.style.display = 'none';
+  }
+
+  showFieldDetail(field) {
+    const modal = this.shadowRoot.getElementById("fieldDetailModal");
+    const overlay = this.shadowRoot.getElementById("fieldDetailOverlay");
+    const body = this.shadowRoot.getElementById("fieldDetailBody");
+
+    // Generate ASN.1 representation
+    const asnDefinition = this.generateASN1Syntax(field);
+
+    // Build field detail content
+    let html = `
+      <div style="margin-bottom: 20px;">
+        <h3 style="color: #667eea; margin-bottom: 8px;">${field.name}</h3>
+        <div style="font-size: 14px; color: #666; margin-bottom: 4px;">Type: <strong>${field.type}</strong></div>
+    `;
+
+    // Show tag information
+    if (field.tag) {
+      const tagClass = field.tag.class;
+      const tagNumber = field.tag.number;
+      let tagClassName = '';
+      let tagColor = '';
+
+      switch(tagClass) {
+        case 0:
+          tagClassName = 'Universal';
+          tagColor = '#3498db';
+          break;
+        case 1:
+          tagClassName = 'Application';
+          tagColor = '#e74c3c';
+          break;
+        case 2:
+          tagClassName = 'Context-specific';
+          tagColor = '#2ecc71';
+          break;
+        case 3:
+          tagClassName = 'Private';
+          tagColor = '#9b59b6';
+          break;
+      }
+
+      html += `
+        <div style="margin-top: 12px; padding: 12px; background: #f9f9f9; border-left: 4px solid ${tagColor}; border-radius: 4px;">
+          <div style="font-weight: 600; margin-bottom: 8px; color: ${tagColor};">Tag Information</div>
+          <table style="width: 100%; font-size: 13px;">
+            <tr>
+              <td style="padding: 4px 0; color: #666;">Tag Class:</td>
+              <td style="padding: 4px 0; font-weight: 600;">${tagClassName} (${tagClass})</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; color: #666;">Tag Number:</td>
+              <td style="padding: 4px 0; font-weight: 600;">${tagNumber}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; color: #666;">Tag Encoding:</td>
+              <td style="padding: 4px 0; font-family: monospace; font-weight: 600;">${tagClass === 2 ? `[${tagNumber}]` : `${tagClassName.toUpperCase()} ${tagNumber}`}</td>
+            </tr>
+          </table>
+        </div>
+      `;
+    }
+
+    // Show optional flag
+    if (field.optional) {
+      html += `<div style="margin-top: 8px; color: #e67e22; font-weight: 600;">⚠ OPTIONAL</div>`;
+    }
+
+    // Show constraints
+    if (field.constraints && Object.keys(field.constraints).length > 0) {
+      html += `
+        <div style="margin-top: 16px; padding: 12px; background: #f0f0ff; border-left: 4px solid #8e44ad; border-radius: 4px;">
+          <div style="font-weight: 600; margin-bottom: 8px; color: #8e44ad;">Constraints</div>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+      `;
+
+      if (field.constraints.required) html += `<li>Required field</li>`;
+      if (field.constraints.min !== undefined) html += `<li>Minimum value: ${field.constraints.min}</li>`;
+      if (field.constraints.max !== undefined) html += `<li>Maximum value: ${field.constraints.max}</li>`;
+      if (field.constraints.minLength !== undefined) html += `<li>Minimum length: ${field.constraints.minLength}</li>`;
+      if (field.constraints.maxLength !== undefined) html += `<li>Maximum length: ${field.constraints.maxLength}</li>`;
+      if (field.constraints.pattern) html += `<li>Pattern: <code>${field.constraints.pattern}</code></li>`;
+      if (field.constraints.enum) html += `<li>Allowed values: ${field.constraints.enum.join(', ')}</li>`;
+
+      html += `
+          </ul>
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+
+    // Show ASN.1 definition
+    html += `
+      <div style="margin-bottom: 16px;">
+        <h4 style="color: #667eea; margin-bottom: 8px;">ASN.1 Definition</h4>
+        <div class="asn-definition">${asnDefinition}</div>
+      </div>
+    `;
+
+    // Show nested fields if any
+    if (field.fields && field.fields.length > 0) {
+      html += `
+        <div style="margin-bottom: 16px;">
+          <h4 style="color: #667eea; margin-bottom: 8px;">Nested Fields (${field.fields.length})</h4>
+          <div style="background: #f9f9f9; padding: 12px; border-radius: 6px;">
+      `;
+
+      field.fields.forEach((nestedField, index) => {
+        html += `<div style="padding: 8px; border-bottom: ${index < field.fields.length - 1 ? '1px solid #e0e0e0' : 'none'};">`;
+        html += `<span style="color: #667eea; font-weight: 600;">${nestedField.name}</span> `;
+        if (nestedField.tag) {
+          html += `<span style="color: #27ae60;">[${nestedField.tag.number}]</span> `;
+        }
+        html += `<span style="color: #e67e22;">${nestedField.type}</span>`;
+        if (nestedField.optional) {
+          html += ` <span style="color: #999; font-style: italic;">OPTIONAL</span>`;
+        }
+        html += `</div>`;
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    }
+
+    // Show raw JSON
+    html += `
+      <div>
+        <h4 style="color: #667eea; margin-bottom: 8px;">Raw JSON</h4>
+        <pre style="background: #f9f9f9; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 11px; max-height: 200px; overflow-y: auto;">${JSON.stringify(field, null, 2)}</pre>
+      </div>
+    `;
+
+    body.innerHTML = html;
+
+    // Show modal
+    modal.style.display = 'block';
+    overlay.style.display = 'block';
+  }
+
+  generateASN1Syntax(field) {
+    let syntax = '';
+
+    // Field name and tag
+    syntax += `<span class="asn-field-name">${field.name}</span>`;
+
+    if (field.tag) {
+      const tagClass = field.tag.class;
+      const tagNumber = field.tag.number;
+
+      if (tagClass === 2) {
+        // Context-specific
+        syntax += ` <span class="asn-tag">[${tagNumber}]</span>`;
+      } else if (tagClass === 1) {
+        syntax += ` <span class="asn-tag">[APPLICATION ${tagNumber}]</span>`;
+      } else if (tagClass === 3) {
+        syntax += ` <span class="asn-tag">[PRIVATE ${tagNumber}]</span>`;
+      }
+    }
+
+    // Type
+    syntax += ` <span class="asn-type">${field.type}</span>`;
+
+    // Optional
+    if (field.optional) {
+      syntax += ` <span class="asn-keyword">OPTIONAL</span>`;
+    }
+
+    // Nested fields
+    if (field.fields && field.fields.length > 0) {
+      syntax += ` <span class="asn-keyword">{</span>\n`;
+      field.fields.forEach((nestedField, index) => {
+        syntax += `  ${this.generateASN1Syntax(nestedField)}`;
+        if (index < field.fields.length - 1) {
+          syntax += ',';
+        }
+        syntax += '\n';
+      });
+      syntax += `<span class="asn-keyword">}</span>`;
+    }
+
+    return syntax;
+  }
+
+  hideFieldDetail() {
+    const modal = this.shadowRoot.getElementById("fieldDetailModal");
+    const overlay = this.shadowRoot.getElementById("fieldDetailOverlay");
 
     modal.style.display = 'none';
     overlay.style.display = 'none';
