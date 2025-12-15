@@ -287,12 +287,14 @@
     <script type="module">
       import { ASN1 } from "https://unpkg.com/@lapo/asn1js@2.0.0/asn1.js";
       import { Hex } from "https://unpkg.com/@lapo/asn1js@2.0.0/hex.js";
+      import { ASN1SchemaParser } from "./asn1-schema-parser.js";
       import { ASN1GraphViewer } from "./asn1-graph-viewer.js";
       import { ASN1ControlPanel } from "./asn1-control-panel.js";
 
-      // Make ASN1 and Hex available globally for the web components
+      // Make ASN1, Hex, and parser available globally for the web components
       window.ASN1 = ASN1;
       window.Hex = Hex;
+      window.ASN1SchemaParser = ASN1SchemaParser;
 
       console.log("✅ All libraries and components loaded");
 

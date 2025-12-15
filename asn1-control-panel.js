@@ -308,6 +308,71 @@ class ASN1ControlPanel extends HTMLElement {
           color: #667eea;
           font-weight: 600;
         }
+
+        /* Schema Viewer Modal */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 2000;
+        }
+
+        .schema-modal {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          z-index: 2001;
+          width: 700px;
+          max-width: 90vw;
+        }
+
+        .schema-item {
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .schema-item:hover {
+          background: #f0f0ff !important;
+          transform: translateX(4px);
+        }
+
+        .schema-field {
+          padding: 8px 12px;
+          background: #f9f9f9;
+          border-left: 3px solid #667eea;
+          margin-bottom: 8px;
+          border-radius: 4px;
+          font-family: monospace;
+          font-size: 12px;
+        }
+
+        .schema-field-name {
+          color: #667eea;
+          font-weight: 600;
+        }
+
+        .schema-field-type {
+          color: #e67e22;
+          font-weight: 500;
+        }
+
+        .schema-field-tag {
+          color: #27ae60;
+          font-size: 11px;
+        }
+
+        .schema-field-constraint {
+          color: #8e44ad;
+          font-size: 11px;
+          margin-top: 4px;
+        }
       </style>
 
       <button class="toggle-btn" id="toggleBtn" title="Open Control Panel">☰</button>
@@ -388,7 +453,7 @@ class ASN1ControlPanel extends HTMLElement {
               Import and apply ASN.1 schemas to decoded data
             </p>
             <button class="btn-secondary" id="importSchema">📋 Import Schema</button>
-            <input type="file" id="schemaFileInput" accept=".json" style="display: none;">
+            <input type="file" id="schemaFileInput" accept=".json,.asn,.asn1" style="display: none;">
 
             <div id="schemaList" style="margin-top: 16px;">
               <div class="empty-state" style="padding: 20px; font-size: 12px;">No schemas loaded</div>
@@ -405,6 +470,18 @@ class ASN1ControlPanel extends HTMLElement {
               <button class="btn-secondary" id="clearSchemas">✕ Clear All Schemas</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Schema Viewer Modal -->
+      <div id="schemaViewerOverlay" class="modal-overlay" style="display: none;"></div>
+      <div id="schemaViewerModal" class="schema-modal" style="display: none;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 18px; font-weight: 600;">Schema Definition</div>
+          <button id="closeSchemaViewer" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px;">✕</button>
+        </div>
+        <div id="schemaViewerBody" style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+          <!-- Content populated dynamically -->
         </div>
       </div>
     `;
@@ -540,21 +617,7 @@ class ASN1ControlPanel extends HTMLElement {
     schemaFileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const schema = JSON.parse(event.target.result);
-            this.dispatchEvent(new CustomEvent("schemaImport", {
-              detail: { schema: schema },
-              bubbles: true,
-              composed: true
-            }));
-            this.showStatus(`Schema "${schema.name || 'Unnamed'}" imported successfully!`, "success");
-          } catch (error) {
-            this.showStatus("Error importing schema: " + error.message, "error");
-          }
-        };
-        reader.readAsText(file);
+        this.importSchemaFile(file);
       }
       // Reset file input
       schemaFileInput.value = '';
@@ -584,6 +647,18 @@ class ASN1ControlPanel extends HTMLElement {
         composed: true
       }));
       this.updateSchemaList([]);
+    });
+
+    // Schema viewer modal
+    const closeSchemaViewer = this.shadowRoot.getElementById("closeSchemaViewer");
+    const schemaViewerOverlay = this.shadowRoot.getElementById("schemaViewerOverlay");
+
+    closeSchemaViewer.addEventListener("click", () => {
+      this.hideSchemaViewer();
+    });
+
+    schemaViewerOverlay.addEventListener("click", () => {
+      this.hideSchemaViewer();
     });
   }
 
@@ -646,6 +721,9 @@ class ASN1ControlPanel extends HTMLElement {
     const schemaControls = this.shadowRoot.getElementById("schemaControls");
     const schemaSelector = this.shadowRoot.getElementById("schemaSelector");
 
+    // Store schemas for later use
+    this.loadedSchemas = schemas || [];
+
     if (!schemas || schemas.length === 0) {
       schemaList.innerHTML = '<div class="empty-state" style="padding: 20px; font-size: 12px;">No schemas loaded</div>';
       schemaControls.style.display = 'none';
@@ -659,19 +737,29 @@ class ASN1ControlPanel extends HTMLElement {
     let html = '';
     schemas.forEach((schema, index) => {
       html += `
-        <div style="margin-bottom: 12px; padding: 12px; background: #f9f9f9; border-radius: 6px; border-left: 4px solid #667eea;">
+        <div class="schema-item" data-schema-index="${index}" style="margin-bottom: 12px; padding: 12px; background: #f9f9f9; border-radius: 6px; border-left: 4px solid #667eea;">
           <div style="font-weight: 600; color: #667eea; margin-bottom: 4px; font-size: 13px;">
-            ${schema.name}
+            ${schema.name} 👁️
           </div>
           <div style="font-size: 11px; color: #666;">
             ${schema.version ? `Version: ${schema.version}` : 'No version specified'}
           </div>
           ${schema.description ? `<div style="font-size: 11px; color: #666; margin-top: 4px;">${schema.description}</div>` : ''}
+          <div style="font-size: 10px; color: #999; margin-top: 4px; font-style: italic;">Click to view definition</div>
         </div>
       `;
     });
 
     schemaList.innerHTML = html;
+
+    // Add click handlers to schema items
+    const schemaItems = this.shadowRoot.querySelectorAll('.schema-item');
+    schemaItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const index = parseInt(item.dataset.schemaIndex);
+        this.showSchemaViewer(schemas[index]);
+      });
+    });
 
     // Update selector dropdown
     schemaSelector.innerHTML = '<option value="">-- Select Schema --</option>';
@@ -727,6 +815,165 @@ class ASN1ControlPanel extends HTMLElement {
     };
 
     reader.readAsArrayBuffer(file);
+  }
+
+  importSchemaFile(file) {
+    const reader = new FileReader();
+    const fileName = file.name.toLowerCase();
+
+    reader.onload = (event) => {
+      try {
+        const content = event.target.result;
+        let schema;
+
+        // Determine file type and parse accordingly
+        if (fileName.endsWith('.json')) {
+          // JSON format
+          schema = JSON.parse(content);
+        } else if (fileName.endsWith('.asn') || fileName.endsWith('.asn1')) {
+          // ASN.1 schema file
+          if (typeof window.ASN1SchemaParser === 'undefined') {
+            this.showStatus("ASN.1 schema parser not loaded", "error");
+            return;
+          }
+
+          const schemaName = file.name.replace(/\.(asn|asn1)$/i, '');
+          schema = window.ASN1SchemaParser.parse(content, schemaName);
+        } else {
+          this.showStatus("Unsupported file format. Use .json, .asn, or .asn1", "error");
+          return;
+        }
+
+        // Dispatch schema import event
+        this.dispatchEvent(new CustomEvent("schemaImport", {
+          detail: { schema: schema },
+          bubbles: true,
+          composed: true
+        }));
+
+        this.showStatus(`Schema "${schema.name || 'Unnamed'}" imported successfully!`, "success");
+      } catch (error) {
+        console.error("Error importing schema:", error);
+        this.showStatus("Error importing schema: " + error.message, "error");
+      }
+    };
+
+    reader.onerror = () => {
+      this.showStatus("Error reading schema file", "error");
+    };
+
+    reader.readAsText(file);
+  }
+
+  showSchemaViewer(schema) {
+    const modal = this.shadowRoot.getElementById("schemaViewerModal");
+    const overlay = this.shadowRoot.getElementById("schemaViewerOverlay");
+    const body = this.shadowRoot.getElementById("schemaViewerBody");
+
+    // Build schema viewer content
+    let html = `
+      <div style="margin-bottom: 20px;">
+        <h3 style="color: #667eea; margin-bottom: 8px;">${schema.name}</h3>
+        ${schema.version ? `<div style="font-size: 12px; color: #666;">Version: ${schema.version}</div>` : ''}
+        ${schema.description ? `<div style="font-size: 13px; color: #666; margin-top: 8px;">${schema.description}</div>` : ''}
+      </div>
+    `;
+
+    // Display root structure
+    if (schema.root) {
+      html += this.renderSchemaStructure(schema.root, 0);
+    }
+
+    // Display all types if available
+    if (schema.allTypes && schema.allTypes.length > 1) {
+      html += `
+        <div style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+          <h4 style="color: #667eea; margin-bottom: 12px;">All Type Definitions</h4>
+      `;
+
+      schema.allTypes.forEach(typeDef => {
+        html += this.renderSchemaStructure(typeDef, 0);
+      });
+
+      html += '</div>';
+    }
+
+    // Raw JSON view
+    html += `
+      <div style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+        <h4 style="color: #667eea; margin-bottom: 12px;">Raw JSON</h4>
+        <pre style="background: #f9f9f9; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 11px; max-height: 300px; overflow-y: auto;">${JSON.stringify(schema, null, 2)}</pre>
+      </div>
+    `;
+
+    body.innerHTML = html;
+
+    // Show modal
+    modal.style.display = 'block';
+    overlay.style.display = 'block';
+  }
+
+  renderSchemaStructure(structure, depth = 0) {
+    const indent = depth * 20;
+    let html = `
+      <div style="margin-left: ${indent}px; margin-bottom: 12px;">
+        <div style="font-weight: 600; color: #333; margin-bottom: 8px;">
+          <span class="schema-field-name">${structure.name || 'Root'}</span>
+          <span class="schema-field-type"> :: ${structure.type || 'UNKNOWN'}</span>
+        </div>
+    `;
+
+    // Show fields
+    if (structure.fields && structure.fields.length > 0) {
+      html += '<div style="margin-left: 20px;">';
+      structure.fields.forEach(field => {
+        html += '<div class="schema-field">';
+        html += `<span class="schema-field-name">${field.name}</span>`;
+
+        if (field.tag) {
+          html += ` <span class="schema-field-tag">[${field.tag.class}:${field.tag.number}]</span>`;
+        }
+
+        html += ` <span class="schema-field-type">${field.type}</span>`;
+
+        if (field.optional) {
+          html += ' <span style="color: #999; font-style: italic;">OPTIONAL</span>';
+        }
+
+        if (field.constraints) {
+          const constraints = [];
+          if (field.constraints.required) constraints.push('required');
+          if (field.constraints.min !== undefined) constraints.push(`min: ${field.constraints.min}`);
+          if (field.constraints.max !== undefined) constraints.push(`max: ${field.constraints.max}`);
+          if (field.constraints.minLength !== undefined) constraints.push(`minLen: ${field.constraints.minLength}`);
+          if (field.constraints.maxLength !== undefined) constraints.push(`maxLen: ${field.constraints.maxLength}`);
+          if (field.constraints.pattern) constraints.push(`pattern: ${field.constraints.pattern}`);
+
+          if (constraints.length > 0) {
+            html += `<div class="schema-field-constraint">${constraints.join(' • ')}</div>`;
+          }
+        }
+
+        // Recursively render nested fields
+        if (field.fields) {
+          html += this.renderSchemaStructure(field, depth + 1);
+        }
+
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  hideSchemaViewer() {
+    const modal = this.shadowRoot.getElementById("schemaViewerModal");
+    const overlay = this.shadowRoot.getElementById("schemaViewerOverlay");
+
+    modal.style.display = 'none';
+    overlay.style.display = 'none';
   }
 
   decode() {

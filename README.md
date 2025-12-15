@@ -284,18 +284,26 @@ When you save changes:
 
 Import ASN.1 schema definitions to automatically apply field names and constraints to your decoded data:
 
-**Schema Format**
-- JSON format defining structure, field names, tags, and constraints
-- See `schema-format.md` for complete documentation
-- Example schema provided in `sample-schema.json`
+**Supported Schema Formats**
+- **JSON format** (`.json`) - Custom JSON schema format defining structure, field names, tags, and constraints
+- **ASN.1 schema files** (`.asn`, `.asn1`) - Native ASN.1 schema definition files
+- See `schema-format.md` for JSON format documentation
+- Example schemas: `sample-schema.json` (JSON), `sample-schema.asn1` (ASN.1)
 
 **How to Use**
 1. Decode your hex DER data first
 2. Open the "Schema Management" section in the control panel
-3. Click "📋 Import Schema" and select your JSON schema file
-4. Select the imported schema from the dropdown
-5. Click "✓ Apply Schema to Data"
-6. Field names and constraints will be applied to your data
+3. Click "📋 Import Schema" and select your schema file (.json, .asn, or .asn1)
+4. Click on any schema in the list to **view its full definition** in a popup
+5. Select the schema from the dropdown to make it active
+6. Click "✓ Apply Schema to Data"
+7. Field names and constraints will be applied to your data
+
+**Schema Viewer**
+- Click on any imported schema name (with 👁️ icon) to view its complete definition
+- See all fields, types, tags, and constraints in a formatted view
+- View raw JSON representation of the schema
+- Helpful for understanding complex schema structures before applying
 
 **Schema Features**
 - **Field Naming**: Replace generic tag names with meaningful field names
