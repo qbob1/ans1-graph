@@ -288,13 +288,15 @@
       import { ASN1 } from "https://unpkg.com/@lapo/asn1js@2.0.0/asn1.js";
       import { Hex } from "https://unpkg.com/@lapo/asn1js@2.0.0/hex.js";
       import { ASN1SchemaParser } from "./asn1-schema-parser.js";
+      import { ErlangASN1Analyzer } from "./erlang-asn1-analyzer.js";
       import { ASN1GraphViewer } from "./asn1-graph-viewer.js";
       import { ASN1ControlPanel } from "./asn1-control-panel.js";
 
-      // Make ASN1, Hex, and parser available globally for the web components
+      // Make ASN1, Hex, and parsers available globally for the web components
       window.ASN1 = ASN1;
       window.Hex = Hex;
       window.ASN1SchemaParser = ASN1SchemaParser;
+      window.ErlangASN1Analyzer = ErlangASN1Analyzer;
 
       console.log("✅ All libraries and components loaded");
 
@@ -458,6 +460,27 @@
 
       graphViewer.addEventListener("schemaApplied", (event) => {
         console.log("Schema applied:", event.detail.schema.name);
+      });
+
+      // Export tag map
+      controlPanel.addEventListener("exportTagMap", () => {
+        const schemas = graphViewer.getSchemas();
+        if (schemas.length === 0) {
+          console.warn("No schemas loaded to export tag map");
+          return;
+        }
+
+        const tagMap = window.ErlangASN1Analyzer.generateTagMap(schemas);
+
+        const blob = new Blob([JSON.stringify(tagMap, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tag-map-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        console.log("Tag map exported:", tagMap);
       });
 
       // Handle window resize

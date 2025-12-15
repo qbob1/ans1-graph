@@ -505,8 +505,12 @@ class ASN1ControlPanel extends HTMLElement {
             <p style="font-size: 12px; color: #666; margin-bottom: 12px;">
               Import and apply ASN.1 schemas to decoded data
             </p>
-            <button class="btn-secondary" id="importSchema">📋 Import Schema</button>
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <button class="btn-secondary" id="importSchema">📋 Import Schema</button>
+              <button class="btn-secondary" id="importErlangProfile">🔧 Import Erlang Profile</button>
+            </div>
             <input type="file" id="schemaFileInput" accept=".json,.asn,.asn1" style="display: none;">
+            <input type="file" id="erlangFileInput" accept=".erl,.hrl" multiple style="display: none;">
 
             <div id="schemaList" style="margin-top: 16px;">
               <div class="empty-state" style="padding: 20px; font-size: 12px;">No schemas loaded</div>
@@ -521,6 +525,7 @@ class ASN1ControlPanel extends HTMLElement {
               </select>
               <button class="btn-primary" id="applySchema">✓ Apply Schema to Data</button>
               <button class="btn-secondary" id="clearSchemas">✕ Clear All Schemas</button>
+              <button class="btn-secondary" id="exportTagMap" style="margin-top: 8px;">📊 Export Tag Map</button>
             </div>
           </div>
         </div>
@@ -670,13 +675,20 @@ class ASN1ControlPanel extends HTMLElement {
 
     // Schema management
     const importSchemaBtn = this.shadowRoot.getElementById("importSchema");
+    const importErlangBtn = this.shadowRoot.getElementById("importErlangProfile");
     const schemaFileInput = this.shadowRoot.getElementById("schemaFileInput");
+    const erlangFileInput = this.shadowRoot.getElementById("erlangFileInput");
     const schemaSelector = this.shadowRoot.getElementById("schemaSelector");
     const applySchemaBtn = this.shadowRoot.getElementById("applySchema");
     const clearSchemasBtn = this.shadowRoot.getElementById("clearSchemas");
+    const exportTagMapBtn = this.shadowRoot.getElementById("exportTagMap");
 
     importSchemaBtn.addEventListener("click", () => {
       schemaFileInput.click();
+    });
+
+    importErlangBtn.addEventListener("click", () => {
+      erlangFileInput.click();
     });
 
     schemaFileInput.addEventListener("change", (e) => {
@@ -712,6 +724,22 @@ class ASN1ControlPanel extends HTMLElement {
         composed: true
       }));
       this.updateSchemaList([]);
+    });
+
+    erlangFileInput.addEventListener("change", (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length > 0) {
+        this.importErlangProfiles(files);
+      }
+      // Reset file input
+      erlangFileInput.value = '';
+    });
+
+    exportTagMapBtn.addEventListener("click", () => {
+      this.dispatchEvent(new CustomEvent("exportTagMap", {
+        bubbles: true,
+        composed: true
+      }));
     });
 
     // Schema viewer modal
@@ -940,6 +968,71 @@ class ASN1ControlPanel extends HTMLElement {
     };
 
     reader.readAsText(file);
+  }
+
+  importErlangProfiles(files) {
+    if (typeof window.ErlangASN1Analyzer === 'undefined') {
+      this.showStatus("Erlang ASN.1 analyzer not loaded", "error");
+      return;
+    }
+
+    const filePromises = files.map(file => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+          resolve({
+            name: file.name.replace(/\.(erl|hrl)$/i, ''),
+            content: event.target.result
+          });
+        };
+
+        reader.onerror = () => {
+          reject(new Error(`Failed to read ${file.name}`));
+        };
+
+        reader.readAsText(file);
+      });
+    });
+
+    Promise.all(filePromises)
+      .then(fileContents => {
+        try {
+          // Analyze all profiles
+          const schemas = window.ErlangASN1Analyzer.analyzeProfiles(fileContents);
+
+          if (schemas.length === 0) {
+            this.showStatus("No valid profiles found in files", "error");
+            return;
+          }
+
+          // Import each schema
+          let successCount = 0;
+          schemas.forEach(schema => {
+            this.dispatchEvent(new CustomEvent("schemaImport", {
+              detail: { schema: schema },
+              bubbles: true,
+              composed: true
+            }));
+            successCount++;
+          });
+
+          this.showStatus(`Imported ${successCount} Erlang profile(s) successfully!`, "success");
+
+          // Generate and store tag map
+          const tagMap = window.ErlangASN1Analyzer.generateTagMap(schemas);
+          this.currentTagMap = tagMap;
+
+          console.log("Generated Tag Map:", tagMap);
+        } catch (error) {
+          console.error("Error analyzing Erlang profiles:", error);
+          this.showStatus("Error analyzing profiles: " + error.message, "error");
+        }
+      })
+      .catch(error => {
+        console.error("Error reading Erlang files:", error);
+        this.showStatus("Error reading files: " + error.message, "error");
+      });
   }
 
   showSchemaViewer(schema) {

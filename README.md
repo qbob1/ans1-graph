@@ -287,17 +287,22 @@ Import ASN.1 schema definitions to automatically apply field names and constrain
 **Supported Schema Formats**
 - **JSON format** (`.json`) - Custom JSON schema format defining structure, field names, tags, and constraints
 - **ASN.1 schema files** (`.asn`, `.asn1`) - Native ASN.1 schema definition files
+- **Erlang ASN.1 profiles** (`.erl`, `.hrl`) - Compiled ASN.1 profiles from Erlang with auto tag extraction
 - See `schema-format.md` for JSON format documentation
-- Example schemas: `sample-schema.json` (JSON), `sample-schema.asn1` (ASN.1)
+- See `erlang-profiles.md` for Erlang profile analyzer documentation
+- Example schemas: `sample-schema.json` (JSON), `sample-schema.asn1` (ASN.1), `sample-erlang-profile.erl` (Erlang)
 
 **How to Use**
 1. Decode your hex DER data first
 2. Open the "Schema Management" section in the control panel
-3. Click "📋 Import Schema" and select your schema file (.json, .asn, or .asn1)
+3. **Import a schema**:
+   - Click "📋 Import Schema" for .json, .asn, or .asn1 files
+   - Click "🔧 Import Erlang Profile" for .erl or .hrl files (can select multiple)
 4. Click on any schema in the list to **view its full definition** in a popup
 5. Select the schema from the dropdown to make it active
 6. Click "✓ Apply Schema to Data"
 7. Field names and constraints will be applied to your data
+8. **Optional**: Click "📊 Export Tag Map" to download a tag mapping JSON file
 
 **Schema Viewer**
 - Click on any imported schema name (with 👁️ icon) to view its complete definition
