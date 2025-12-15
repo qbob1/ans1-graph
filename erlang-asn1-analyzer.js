@@ -13,11 +13,40 @@ class ErlangASN1Analyzer {
   static parseErlangProfile(erlangCode, profileName = 'ErlangProfile') {
     const schemas = [];
 
-    // Extract record definitions
+    // Extract record definitions from .hrl files
     const records = this.extractRecords(erlangCode);
 
-    // Extract type definitions
+    // Extract type information from .erl comment annotations
+    const typeAnnotations = this.extractTypeAnnotations(erlangCode);
+
+    // Extract type definitions from comments
     const types = this.extractTypes(erlangCode);
+
+    // Merge type annotations into records
+    if (Object.keys(typeAnnotations).length > 0) {
+      records.forEach(record => {
+        const recordAnnotations = typeAnnotations[record.name];
+        if (recordAnnotations) {
+          record.fields.forEach(field => {
+            const annotation = recordAnnotations[field.name];
+            if (annotation) {
+              // Override field type with annotation type
+              if (annotation.type) {
+                field.type = annotation.type;
+              }
+              // Override optional flag
+              if (annotation.optional !== undefined) {
+                field.optional = annotation.optional;
+              }
+              // Use explicit tag number if available
+              if (annotation.tagNumber !== undefined) {
+                field.tag.number = annotation.tagNumber;
+              }
+            }
+          });
+        }
+      });
+    }
 
     // Merge records and types
     const allDefinitions = [...records, ...types];
@@ -100,10 +129,19 @@ class ErlangASN1Analyzer {
     // Remove leading/trailing whitespace
     fieldStr = fieldStr.trim();
 
+    // Remove inline comments
+    const commentIndex = fieldStr.indexOf('%');
+    if (commentIndex !== -1) {
+      fieldStr = fieldStr.substring(0, commentIndex).trim();
+    }
+
     if (!fieldStr) return null;
 
+    // Pattern: 'field-name' :: Type
     // Pattern: fieldName :: Type
-    // Pattern: fieldName = DefaultValue :: Type
+    // Pattern: 'field-name' = DefaultValue :: Type
+    // Pattern: fieldName = DefaultValue
+    // Pattern: 'field-name'
     // Pattern: fieldName
 
     let fieldName = '';
@@ -113,23 +151,35 @@ class ErlangASN1Analyzer {
     let constraints = {};
 
     // Check for type annotation (:: Type)
-    const typeMatch = fieldStr.match(/^(\w+)(?:\s*=\s*([^:]+))?\s*::\s*(.+)$/);
+    // Match field names with or without quotes, with or without hyphens
+    const typeMatch = fieldStr.match(/^(['"]?[\w-]+['"]?)(?:\s*=\s*([^:]+))?\s*::\s*(.+)$/);
 
     if (typeMatch) {
-      fieldName = typeMatch[1];
+      // Has type annotation
+      fieldName = typeMatch[1].replace(/['"]/g, ''); // Remove quotes if present
       defaultValue = typeMatch[2] ? typeMatch[2].trim() : null;
       fieldType = this.parseErlangType(typeMatch[3].trim());
     } else {
-      // Simple field name
-      const simpleMatch = fieldStr.match(/^(\w+)(?:\s*=\s*(.+))?$/);
+      // No type annotation - just field name and maybe default value
+      const simpleMatch = fieldStr.match(/^(['"]?[\w-]+['"]?)(?:\s*=\s*(.+))?$/);
       if (simpleMatch) {
-        fieldName = simpleMatch[1];
+        fieldName = simpleMatch[1].replace(/['"]/g, ''); // Remove quotes if present
         defaultValue = simpleMatch[2] ? simpleMatch[2].trim() : null;
+
+        // Try to infer type from default value
+        if (defaultValue) {
+          fieldType = this.inferTypeFromDefault(defaultValue);
+        }
       }
     }
 
+    if (!fieldName) return null;
+
     // Check if optional (has default value or marked as optional)
-    optional = defaultValue !== null || fieldStr.includes('undefined') || fieldStr.includes('asn1_NOVALUE');
+    optional = defaultValue !== null ||
+               fieldStr.includes('asn1_NOVALUE') ||
+               fieldStr.includes('asn1_DEFAULT') ||
+               fieldStr.includes('undefined');
 
     // Extract constraints from type
     const constraintsMatch = fieldType.match(/\{([^}]+)\}/);
@@ -148,6 +198,40 @@ class ErlangASN1Analyzer {
       optional: optional,
       constraints: Object.keys(constraints).length > 0 ? constraints : undefined
     };
+  }
+
+  /**
+   * Infer ASN.1 type from Erlang default value
+   * @param {string} defaultValue - Default value string
+   * @returns {string} ASN.1 type
+   */
+  static inferTypeFromDefault(defaultValue) {
+    // asn1_NOVALUE, asn1_DEFAULT - generic, can't infer
+    if (defaultValue.includes('asn1_')) {
+      return 'OCTET STRING';
+    }
+
+    // true/false - BOOLEAN
+    if (defaultValue === 'true' || defaultValue === 'false') {
+      return 'BOOLEAN';
+    }
+
+    // Numeric - INTEGER
+    if (/^-?\d+$/.test(defaultValue)) {
+      return 'INTEGER';
+    }
+
+    // Binary - OCTET STRING
+    if (defaultValue.startsWith('<<') || defaultValue.startsWith('binary')) {
+      return 'OCTET STRING';
+    }
+
+    // Atom - could be ENUMERATED or identifier
+    if (defaultValue.match(/^[a-z][\w]*$/)) {
+      return 'ENUMERATED';
+    }
+
+    return 'OCTET STRING';
   }
 
   /**
@@ -218,6 +302,58 @@ class ErlangASN1Analyzer {
     }
 
     return constraints;
+  }
+
+  /**
+   * Extract type annotations from .erl file comments
+   * Format: %% attribute fieldName(tagNumber) with type TYPE [OPTIONAL]
+   * @param {string} code - Erlang code
+   * @returns {Object} Map of recordName -> fieldName -> {type, optional, tagNumber}
+   */
+  static extractTypeAnnotations(code) {
+    const annotations = {};
+    let currentRecord = null;
+
+    const lines = code.split('\n');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Detect record context from function names like dec_PEHeader/2 or enc_PEHeader/2
+      const recordMatch = line.match(/^(?:dec|enc)_['"]?(\w+(?:-\w+)*)['"]?\/\d/);
+      if (recordMatch) {
+        currentRecord = recordMatch[1];
+        if (!annotations[currentRecord]) {
+          annotations[currentRecord] = {};
+        }
+        continue;
+      }
+
+      // Extract field type annotations
+      // Format: %% attribute fieldName(tagNumber) with type TYPE [OPTIONAL]
+      const attrMatch = line.match(/%+\s*attribute\s+['"]?([\w-]+)['"]?\s*\((\d+)\)\s+with\s+type\s+([\w\s]+?)(?:\s+(OPTIONAL|DEFAULT))?$/i);
+      if (attrMatch && currentRecord) {
+        const fieldName = attrMatch[1];
+        const tagNumber = parseInt(attrMatch[2]);
+        let fieldType = attrMatch[3].trim();
+        const optional = attrMatch[4] !== undefined;
+
+        // Clean up type name
+        fieldType = fieldType.replace(/\s+/g, ' ');
+
+        if (!annotations[currentRecord]) {
+          annotations[currentRecord] = {};
+        }
+
+        annotations[currentRecord][fieldName] = {
+          type: fieldType,
+          optional: optional,
+          tagNumber: tagNumber
+        };
+      }
+    }
+
+    return annotations;
   }
 
   /**
@@ -312,12 +448,44 @@ class ErlangASN1Analyzer {
   static analyzeProfiles(files) {
     const schemas = [];
 
+    // Group files by base name (profile.erl and profile.hrl should be paired)
+    const fileGroups = {};
+
     files.forEach(file => {
+      const baseName = file.name.replace(/\.(erl|hrl)$/i, '');
+      if (!fileGroups[baseName]) {
+        fileGroups[baseName] = {};
+      }
+
+      if (file.name.match(/\.erl$/i)) {
+        fileGroups[baseName].erl = file.content;
+      } else if (file.name.match(/\.hrl$/i)) {
+        fileGroups[baseName].hrl = file.content;
+      }
+    });
+
+    // Process each group
+    Object.keys(fileGroups).forEach(baseName => {
+      const group = fileGroups[baseName];
+
       try {
-        const schema = this.parseErlangProfile(file.content, file.name);
-        schemas.push(schema);
+        // Combine .erl and .hrl content if both are available
+        let combinedContent = '';
+
+        if (group.erl) {
+          combinedContent += group.erl + '\n';
+        }
+
+        if (group.hrl) {
+          combinedContent += group.hrl + '\n';
+        }
+
+        if (combinedContent) {
+          const schema = this.parseErlangProfile(combinedContent, baseName);
+          schemas.push(schema);
+        }
       } catch (error) {
-        console.error(`Error parsing ${file.name}:`, error.message);
+        console.error(`Error parsing ${baseName}:`, error.message);
       }
     });
 
