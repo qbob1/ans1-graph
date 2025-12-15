@@ -510,7 +510,10 @@ class ASN1ControlPanel extends HTMLElement {
               <button class="btn-secondary" id="importErlangProfile">🔧 Import Erlang Profile</button>
             </div>
             <input type="file" id="schemaFileInput" accept=".json,.asn,.asn1" style="display: none;">
-            <input type="file" id="erlangFileInput" accept=".erl,.hrl" multiple style="display: none;">
+            <input type="file" id="erlangFileInput" accept=".erl,.hrl,.asn1db" multiple style="display: none;">
+            <div style="font-size: 11px; color: #999; padding: 8px; background: #f8f9fa; border-radius: 4px; margin-bottom: 12px;">
+              💡 <strong>Tip:</strong> For Erlang profiles, import <strong>both .erl and .hrl</strong> files together for complete type information. The .erl file contains field types in comments.
+            </div>
 
             <div id="schemaList" style="margin-top: 16px;">
               <div class="empty-state" style="padding: 20px; font-size: 12px;">No schemas loaded</div>
