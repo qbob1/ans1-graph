@@ -1095,13 +1095,68 @@ class ASN1ControlPanel extends HTMLElement {
 
     // Generate ASN.1 representation
     const asnDefinition = this.generateASN1Syntax(field);
+    const fullASN1Definition = this.generateFullASN1Definition(field);
 
-    // Build field detail content
+    // Build field detail content with Field Map at top
     let html = `
       <div style="margin-bottom: 20px;">
         <h3 style="color: #667eea; margin-bottom: 8px;">${field.name}</h3>
         <div style="font-size: 14px; color: #666; margin-bottom: 4px;">Type: <strong>${field.type}</strong></div>
     `;
+
+    // Field Map Overview
+    html += `
+      <div style="margin-top: 16px; padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
+        <div style="font-weight: 600; margin-bottom: 12px; font-size: 15px;">📍 Field Map</div>
+        <div style="display: flex; align-items: center; gap: 12px; font-family: monospace; font-size: 14px;">
+          <div style="background: rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px; font-weight: 600;">
+            ${field.name}
+          </div>
+    `;
+
+    if (field.tag) {
+      const tagClass = field.tag.class;
+      const tagNumber = field.tag.number;
+      let tagDisplay = '';
+      let tagBg = '';
+
+      switch(tagClass) {
+        case 0:
+          tagDisplay = `UNIVERSAL ${tagNumber}`;
+          tagBg = 'rgba(52, 152, 219, 0.3)';
+          break;
+        case 1:
+          tagDisplay = `APPLICATION ${tagNumber}`;
+          tagBg = 'rgba(231, 76, 60, 0.3)';
+          break;
+        case 2:
+          tagDisplay = `[${tagNumber}]`;
+          tagBg = 'rgba(46, 204, 113, 0.3)';
+          break;
+        case 3:
+          tagDisplay = `PRIVATE ${tagNumber}`;
+          tagBg = 'rgba(155, 89, 182, 0.3)';
+          break;
+      }
+
+      html += `
+          <div style="font-size: 20px; opacity: 0.8;">→</div>
+          <div style="background: ${tagBg}; padding: 8px 12px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.4); font-weight: 600;">
+            Tag ${tagDisplay}
+          </div>
+      `;
+    }
+
+    html += `
+          <div style="font-size: 20px; opacity: 0.8;">→</div>
+          <div style="background: rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 6px; font-style: italic;">
+            ${field.type}
+          </div>
+        </div>
+      </div>
+    `;
+
+    html += `</div>`;
 
     // Show tag information
     if (field.tag) {
@@ -1183,7 +1238,11 @@ class ASN1ControlPanel extends HTMLElement {
     html += `
       <div style="margin-bottom: 16px;">
         <h4 style="color: #667eea; margin-bottom: 8px;">ASN.1 Definition</h4>
-        <div class="asn-definition">${asnDefinition}</div>
+        <div class="asn-definition">${fullASN1Definition}</div>
+
+        <div style="margin-top: 12px; padding: 8px 12px; background: #f0f0f0; border-left: 3px solid #667eea; border-radius: 4px; font-size: 12px;">
+          <strong>Compact Form:</strong> <code style="color: #667eea; font-family: monospace;">${asnDefinition}</code>
+        </div>
       </div>
     `;
 
@@ -1233,7 +1292,35 @@ class ASN1ControlPanel extends HTMLElement {
     let syntax = '';
 
     // Field name and tag
-    syntax += `<span class="asn-field-name">${field.name}</span>`;
+    syntax += `${field.name}`;
+
+    if (field.tag) {
+      const tagClass = field.tag.class;
+      const tagNumber = field.tag.number;
+
+      if (tagClass === 2) {
+        syntax += ` [${tagNumber}]`;
+      } else if (tagClass === 1) {
+        syntax += ` [APPLICATION ${tagNumber}]`;
+      } else if (tagClass === 3) {
+        syntax += ` [PRIVATE ${tagNumber}]`;
+      }
+    }
+
+    syntax += ` ${field.type}`;
+
+    if (field.optional) {
+      syntax += ` OPTIONAL`;
+    }
+
+    return syntax;
+  }
+
+  generateFullASN1Definition(field) {
+    let definition = '';
+
+    // Field name and tag with syntax highlighting
+    definition += `<span class="asn-field-name">${field.name}</span>`;
 
     if (field.tag) {
       const tagClass = field.tag.class;
@@ -1241,36 +1328,57 @@ class ASN1ControlPanel extends HTMLElement {
 
       if (tagClass === 2) {
         // Context-specific
-        syntax += ` <span class="asn-tag">[${tagNumber}]</span>`;
+        definition += ` <span class="asn-tag">[${tagNumber}]</span>`;
       } else if (tagClass === 1) {
-        syntax += ` <span class="asn-tag">[APPLICATION ${tagNumber}]</span>`;
+        definition += ` <span class="asn-tag">[APPLICATION ${tagNumber}]</span>`;
       } else if (tagClass === 3) {
-        syntax += ` <span class="asn-tag">[PRIVATE ${tagNumber}]</span>`;
+        definition += ` <span class="asn-tag">[PRIVATE ${tagNumber}]</span>`;
+      } else if (tagClass === 0) {
+        definition += ` <span class="asn-tag">[UNIVERSAL ${tagNumber}]</span>`;
       }
     }
 
     // Type
-    syntax += ` <span class="asn-type">${field.type}</span>`;
+    definition += ` <span class="asn-type">${field.type}</span>`;
 
     // Optional
     if (field.optional) {
-      syntax += ` <span class="asn-keyword">OPTIONAL</span>`;
+      definition += ` <span class="asn-keyword">OPTIONAL</span>`;
     }
 
     // Nested fields
     if (field.fields && field.fields.length > 0) {
-      syntax += ` <span class="asn-keyword">{</span>\n`;
+      definition += ` <span class="asn-keyword">{</span>\n`;
       field.fields.forEach((nestedField, index) => {
-        syntax += `  ${this.generateASN1Syntax(nestedField)}`;
-        if (index < field.fields.length - 1) {
-          syntax += ',';
+        definition += `  <span class="asn-field-name">${nestedField.name}</span>`;
+
+        if (nestedField.tag) {
+          const tagClass = nestedField.tag.class;
+          const tagNumber = nestedField.tag.number;
+          if (tagClass === 2) {
+            definition += ` <span class="asn-tag">[${tagNumber}]</span>`;
+          } else if (tagClass === 1) {
+            definition += ` <span class="asn-tag">[APPLICATION ${tagNumber}]</span>`;
+          } else if (tagClass === 3) {
+            definition += ` <span class="asn-tag">[PRIVATE ${tagNumber}]</span>`;
+          }
         }
-        syntax += '\n';
+
+        definition += ` <span class="asn-type">${nestedField.type}</span>`;
+
+        if (nestedField.optional) {
+          definition += ` <span class="asn-keyword">OPTIONAL</span>`;
+        }
+
+        if (index < field.fields.length - 1) {
+          definition += ',';
+        }
+        definition += '\n';
       });
-      syntax += `<span class="asn-keyword">}</span>`;
+      definition += `<span class="asn-keyword">}</span>`;
     }
 
-    return syntax;
+    return definition;
   }
 
   hideFieldDetail() {
