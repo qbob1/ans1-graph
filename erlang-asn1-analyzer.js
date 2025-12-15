@@ -13,9 +13,11 @@ class ErlangASN1Analyzer {
   static parseErlangProfile(erlangCode, profileName = 'ErlangProfile') {
     const schemas = [];
 
+    console.log(`\n🔍 Parsing Erlang profile: ${profileName}`);
+    console.log(`   Code length: ${erlangCode.length} characters`);
+
     // Extract record definitions from .hrl files
     const records = this.extractRecords(erlangCode);
-    console.log(`📝 Extracted ${records.length} record definitions from ${profileName}`);
 
     // Extract type information from .erl comment annotations
     const typeAnnotations = this.extractTypeAnnotations(erlangCode);
@@ -61,7 +63,10 @@ class ErlangASN1Analyzer {
     // Merge records and types
     const allDefinitions = [...records, ...types];
 
+    console.log(`\n📦 Total definitions: ${allDefinitions.length} (${records.length} records + ${types.length} types)`);
+
     if (allDefinitions.length === 0) {
+      console.error(`❌ No type definitions found in ${profileName}`);
       throw new Error('No type definitions found in Erlang profile');
     }
 
@@ -69,6 +74,8 @@ class ErlangASN1Analyzer {
     allDefinitions.forEach(def => {
       schemas.push(this.convertToSchema(def));
     });
+
+    console.log(`✅ Successfully generated schema for ${profileName}`);
 
     return {
       name: profileName,
@@ -87,14 +94,62 @@ class ErlangASN1Analyzer {
   static extractRecords(code) {
     const records = [];
 
-    // Match: -record(RecordName, { field1, field2, ... }).
-    const recordRegex = /-record\((?:'([^']+)'|(\w+)),\s*\{([^}]+)\}\)\./g;
+    // Find all -record definitions by parsing character by character
+    let i = 0;
+    while (i < code.length) {
+      // Look for -record(
+      const recordStart = code.indexOf('-record(', i);
+      if (recordStart === -1) break;
 
-    let match;
-    while ((match = recordRegex.exec(code)) !== null) {
-      const recordName = match[1] || match[2];
-      const fieldsText = match[3];
+      // Extract record name
+      let pos = recordStart + 8; // Skip "-record("
 
+      // Skip whitespace
+      while (pos < code.length && /\s/.test(code[pos])) pos++;
+
+      // Get record name (quoted or unquoted)
+      let recordName = '';
+      if (code[pos] === "'") {
+        // Quoted name
+        pos++; // Skip opening quote
+        const nameEnd = code.indexOf("'", pos);
+        if (nameEnd === -1) break;
+        recordName = code.substring(pos, nameEnd);
+        pos = nameEnd + 1;
+      } else {
+        // Unquoted name
+        const nameMatch = code.substring(pos).match(/^(\w+)/);
+        if (!nameMatch) break;
+        recordName = nameMatch[1];
+        pos += recordName.length;
+      }
+
+      // Skip to opening brace
+      const braceStart = code.indexOf('{', pos);
+      if (braceStart === -1) break;
+
+      // Find matching closing brace
+      let depth = 1;
+      let braceEnd = braceStart + 1;
+      while (braceEnd < code.length && depth > 0) {
+        if (code[braceEnd] === '{') depth++;
+        else if (code[braceEnd] === '}') depth--;
+        braceEnd++;
+      }
+
+      if (depth !== 0) break; // Unmatched braces
+
+      // Extract fields text (everything between { and })
+      const fieldsText = code.substring(braceStart + 1, braceEnd - 1);
+
+      // Verify we have closing ).
+      const closePos = code.indexOf(').', braceEnd - 1);
+      if (closePos === -1 || closePos > braceEnd + 10) {
+        i = braceEnd;
+        continue;
+      }
+
+      // Parse fields
       const fields = this.parseRecordFields(fieldsText);
 
       records.push({
@@ -103,6 +158,13 @@ class ErlangASN1Analyzer {
         fields: fields,
         source: 'record'
       });
+
+      i = closePos + 2;
+    }
+
+    console.log(`📝 Extracted ${records.length} records`);
+    if (records.length > 0) {
+      console.log(`   First 5: ${records.slice(0, 5).map(r => r.name).join(', ')}`);
     }
 
     return records;
@@ -325,6 +387,7 @@ class ErlangASN1Analyzer {
     let currentRecord = null;
 
     const lines = code.split('\n');
+    let annotationCount = 0;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -384,8 +447,11 @@ class ErlangASN1Analyzer {
           optional: optional,
           tagNumber: tagNumber
         };
+        annotationCount++;
       }
     }
+
+    console.log(`📋 Extracted ${annotationCount} type annotations across ${Object.keys(annotations).length} records`);
 
     return annotations;
   }
