@@ -713,6 +713,21 @@ class ASN1GraphViewer extends HTMLElement {
   }
 
   /**
+   * Get tag class name from numeric value
+   * @param {number} tagClass - Numeric tag class (0=UNIVERSAL, 1=APPLICATION, 2=CONTEXT, 3=PRIVATE)
+   * @returns {string} Tag class name
+   */
+  getTagClassName(tagClass) {
+    const tagClassNames = {
+      0: 'UNIVERSAL',
+      1: 'APPLICATION',
+      2: 'CONTEXT',
+      3: 'PRIVATE'
+    };
+    return tagClassNames[tagClass] || 'UNKNOWN';
+  }
+
+  /**
    * Convert JSON to hierarchical structure
    */
   jsonToHierarchy(obj, name = "root", path = "root") {
@@ -754,16 +769,36 @@ class ASN1GraphViewer extends HTMLElement {
         const tagClass = obj.tagClass;
         const tagNumber = obj.tagNumber;
 
+        // Try to get field info from ASN.1 database
+        let fieldLabel = null;
+        let fieldInfo = null;
+        if (window.asn1DB) {
+          const tagClassName = this.getTagClassName(tagClass);
+          const defs = window.asn1DB.getByTag(tagClassName, tagNumber);
+
+          // Look for matching definition in parent context if available
+          if (defs && defs.length > 0) {
+            // Use the first match for now (could be improved with context matching)
+            fieldInfo = defs[0];
+            fieldLabel = fieldInfo.name;
+          }
+        }
+
         // Show tag info for non-universal tags
         if (tagClass === 1) {
           // Application
-          tagInfo = ` [APPLICATION ${tagNumber}]`;
+          tagInfo = fieldLabel ? ` (${fieldLabel}) [APPLICATION ${tagNumber}]` : ` [APPLICATION ${tagNumber}]`;
         } else if (tagClass === 2) {
           // Context-specific
-          tagInfo = ` [${tagNumber}]`;
+          tagInfo = fieldLabel ? ` (${fieldLabel}) [${tagNumber}]` : ` [${tagNumber}]`;
         } else if (tagClass === 3) {
           // Private
-          tagInfo = ` [PRIVATE ${tagNumber}]`;
+          tagInfo = fieldLabel ? ` (${fieldLabel}) [PRIVATE ${tagNumber}]` : ` [PRIVATE ${tagNumber}]`;
+        }
+
+        // Store database info in node for later use
+        if (fieldInfo) {
+          node.fieldInfo = fieldInfo;
         }
       }
 

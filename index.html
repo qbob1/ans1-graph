@@ -283,6 +283,9 @@
     <!-- Load D3.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
+    <!-- Load ASN.1 Database Query Library -->
+    <script src="asn1-query-browser.js"></script>
+
     <!-- Load Web Components and Libraries -->
     <script type="module">
       import { ASN1 } from "https://unpkg.com/@lapo/asn1js@2.0.0/asn1.js";
@@ -297,6 +300,18 @@
       window.Hex = Hex;
       window.ASN1SchemaParser = ASN1SchemaParser;
       window.ErlangASN1Analyzer = ErlangASN1Analyzer;
+
+      // Load ASN.1 definitions database
+      console.log("📚 Loading ASN.1 definitions database...");
+      ASN1Database.fromURL('asn1_definitions.json')
+        .then(db => {
+          window.asn1DB = db;
+          console.log(`✅ ASN.1 database loaded: ${db.getAllNames().length} definitions`);
+        })
+        .catch(err => {
+          console.warn("⚠️  Could not load ASN.1 database:", err.message);
+          console.log("   You can still use the app, but field labels won't be available");
+        });
 
       console.log("✅ All libraries and components loaded");
 
