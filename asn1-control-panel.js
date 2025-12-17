@@ -1759,21 +1759,63 @@ class ASN1ControlPanel extends HTMLElement {
     );
 
     if (node.tag?.tagClass === 2 || node.tag?.tagClass === 1 || node.tag?.tagClass === 3) {
-      const baseType = this.getBaseUniversalType(node);
-      const key = `${node.tag.tagClass}-${node.tag.tagNumber}-${node.tag.tagConstructed}`;
-      this.unknownTypes.add(JSON.stringify({
-        key,
-        tagClass: node.tag.tagClass,
-        tagNumber: node.tag.tagNumber,
-        tagConstructed: node.tag.tagConstructed,
-        currentName: typeName,
-        baseType: baseType,
-      }));
+      // Check if this tag has a definition in loaded schemas or database
+      const hasDefinition = this.hasSchemaDefinition(node.tag.tagClass, node.tag.tagNumber);
+
+      // Only add to unknownTypes if no definition found
+      if (!hasDefinition) {
+        const baseType = this.getBaseUniversalType(node);
+        const key = `${node.tag.tagClass}-${node.tag.tagNumber}-${node.tag.tagConstructed}`;
+        this.unknownTypes.add(JSON.stringify({
+          key,
+          tagClass: node.tag.tagClass,
+          tagNumber: node.tag.tagNumber,
+          tagConstructed: node.tag.tagConstructed,
+          currentName: typeName,
+          baseType: baseType,
+        }));
+      }
     }
 
     if (node.sub && node.sub.length > 0) {
       node.sub.forEach((n) => this.collectUnknownTypes(n));
     }
+  }
+
+  hasSchemaDefinition(tagClass, tagNumber) {
+    // Check ASN.1 database first
+    if (window.asn1DB) {
+      const tagClassNames = {
+        0: 'UNIVERSAL',
+        1: 'APPLICATION',
+        2: 'CONTEXT',
+        3: 'PRIVATE'
+      };
+      const tagClassName = tagClassNames[tagClass] || 'UNKNOWN';
+      const defs = window.asn1DB.getByTag(tagClassName, tagNumber);
+      if (defs && defs.length > 0) {
+        return true;
+      }
+    }
+
+    // Check loaded schemas
+    if (this.loadedSchemas && this.loadedSchemas.length > 0) {
+      for (const schema of this.loadedSchemas) {
+        const schemaRoot = schema.root || schema;
+        if (schemaRoot.fields && Array.isArray(schemaRoot.fields)) {
+          const matchedField = schemaRoot.fields.find(field =>
+            field.tag &&
+            field.tag.class === tagClass &&
+            field.tag.number === tagNumber
+          );
+          if (matchedField) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   }
 
   serializeNode(node, depth = 0) {
