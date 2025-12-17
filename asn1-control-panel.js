@@ -469,10 +469,10 @@ class ASN1ControlPanel extends HTMLElement {
           </div>
 
           <div class="section">
-            <div class="section-title">Custom Labels</div>
+            <div class="section-title">Custom Labels <span style="font-size: 11px; font-weight: 400; color: #999;">(for unknown tags)</span></div>
             <div id="labelForm">
               <div class="empty-state">
-                Decode ASN.1 data to see unlabeled tags
+                Tags with schema definitions are auto-labeled. Custom labels are only needed for unknown tags.
               </div>
             </div>
             <button class="btn-primary" id="saveLabels" style="display: none;">✓ Apply Labels</button>

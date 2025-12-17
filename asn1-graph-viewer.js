@@ -729,8 +729,12 @@ class ASN1GraphViewer extends HTMLElement {
 
   /**
    * Convert JSON to hierarchical structure
+   * @param {Object} obj - ASN.1 data object
+   * @param {string} name - Node name
+   * @param {string} path - Node path
+   * @param {Object} parentSchema - Parent schema definition for field lookup
    */
-  jsonToHierarchy(obj, name = "root", path = "root") {
+  jsonToHierarchy(obj, name = "root", path = "root", parentSchema = null) {
     const node = {
       name: name,
       path: path,
@@ -757,6 +761,7 @@ class ASN1GraphViewer extends HTMLElement {
       // Determine node name with tag information
       let nodeName = name;
       let tagInfo = "";
+      let schemaField = null;
 
       if (obj.name) {
         nodeName = obj.name;
@@ -769,10 +774,27 @@ class ASN1GraphViewer extends HTMLElement {
         const tagClass = obj.tagClass;
         const tagNumber = obj.tagNumber;
 
-        // Try to get field info from ASN.1 database
+        // First, try to get field info from parent schema
         let fieldLabel = null;
         let fieldInfo = null;
-        if (window.asn1DB) {
+
+        if (parentSchema && parentSchema.fields && Array.isArray(parentSchema.fields)) {
+          // Look for matching field by tag class and number
+          schemaField = parentSchema.fields.find(field =>
+            field.tag &&
+            field.tag.class === tagClass &&
+            field.tag.number === tagNumber
+          );
+
+          if (schemaField) {
+            fieldLabel = schemaField.name;
+            // Use schema field info
+            fieldInfo = schemaField;
+          }
+        }
+
+        // Fall back to ASN.1 database lookup if no schema match
+        if (!fieldLabel && window.asn1DB) {
           const tagClassName = this.getTagClassName(tagClass);
           const defs = window.asn1DB.getByTag(tagClassName, tagNumber);
 
@@ -807,7 +829,22 @@ class ASN1GraphViewer extends HTMLElement {
         node.schemaConstraints = obj._schemaConstraints;
       }
 
+      // Store constraints from schema field if matched
+      if (schemaField && schemaField.constraints) {
+        node.schemaConstraints = schemaField.constraints;
+      }
+
       node.name = nodeName + tagInfo;
+
+      // Determine schema to pass to children
+      let childSchema = null;
+      if (schemaField && schemaField.fields) {
+        // Use the matched schema field as context for children
+        childSchema = schemaField;
+      } else if (parentSchema && parentSchema.fields) {
+        // Continue with parent schema if no field-specific schema
+        childSchema = parentSchema;
+      }
 
       // Separate properties and children
       Object.entries(obj).forEach(([key, value]) => {
@@ -815,7 +852,7 @@ class ASN1GraphViewer extends HTMLElement {
         if (key === "sub" && Array.isArray(value)) {
           value.forEach((child, index) => {
             node.children.push(
-              this.jsonToHierarchy(child, `[${index}]`, `${path}.sub[${index}]`)
+              this.jsonToHierarchy(child, `[${index}]`, `${path}.sub[${index}]`, childSchema)
             );
           });
         } else if (value === null) {
@@ -834,13 +871,54 @@ class ASN1GraphViewer extends HTMLElement {
         } else if (!Array.isArray(value)) {
           // Regular object property (not 'sub' array)
           node.children.push(
-            this.jsonToHierarchy(value, key, `${path}.${key}`)
+            this.jsonToHierarchy(value, key, `${path}.${key}`, childSchema)
           );
         }
       });
     }
 
     return node;
+  }
+
+  /**
+   * Find the best matching schema for the given data
+   * @param {Object} obj - ASN.1 data object
+   * @returns {Object|null} Matching schema or null
+   */
+  findMatchingSchema(obj) {
+    if (!obj || !this.schemas || this.schemas.length === 0) {
+      return null;
+    }
+
+    // If there's an active schema, use it
+    if (this.activeSchema) {
+      return this.activeSchema.root || this.activeSchema;
+    }
+
+    // Try to match by type and tag
+    for (const schema of this.schemas) {
+      const schemaRoot = schema.root || schema;
+
+      // Match by type
+      if (obj.type && schemaRoot.type === obj.type) {
+        // If both have tags, match them too
+        if (obj.tagClass !== undefined && schemaRoot.tag) {
+          if (schemaRoot.tag.class === obj.tagClass && schemaRoot.tag.number === obj.tagNumber) {
+            return schemaRoot;
+          }
+        } else {
+          // Type match is good enough if no tags to compare
+          return schemaRoot;
+        }
+      }
+    }
+
+    // If only one schema is loaded, use it
+    if (this.schemas.length === 1) {
+      return this.schemas[0].root || this.schemas[0];
+    }
+
+    return null;
   }
 
   /**
@@ -851,8 +929,11 @@ class ASN1GraphViewer extends HTMLElement {
       return;
     }
 
-    // Convert JSON to hierarchy
-    const hierarchyData = this.jsonToHierarchy(jsonObj);
+    // Find matching schema for the root data
+    const matchingSchema = this.findMatchingSchema(jsonObj);
+
+    // Convert JSON to hierarchy with schema context
+    const hierarchyData = this.jsonToHierarchy(jsonObj, "root", "root", matchingSchema);
     this.root = d3.hierarchy(hierarchyData);
 
     // Create tree layout - HORIZONTAL (left to right)
