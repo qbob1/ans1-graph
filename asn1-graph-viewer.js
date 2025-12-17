@@ -802,6 +802,11 @@ class ASN1GraphViewer extends HTMLElement {
         }
       }
 
+      // Store schema constraints if available
+      if (obj._schemaConstraints) {
+        node.schemaConstraints = obj._schemaConstraints;
+      }
+
       node.name = nodeName + tagInfo;
 
       // Separate properties and children
@@ -1222,6 +1227,74 @@ class ASN1GraphViewer extends HTMLElement {
             ${Object.keys(currentConstraints).length > 0 || currentConstraints.alias ? 'Edit' : 'Add'}
           </button>
         </div>
+    `;
+
+    // Display schema constraints if available
+    const hasSchemaConstraints = nodeData.data.schemaConstraints && Object.keys(nodeData.data.schemaConstraints).length > 0;
+    const hasDbFieldInfo = nodeData.data.fieldInfo;
+
+    if (hasSchemaConstraints || hasDbFieldInfo) {
+      html += `
+        <div style="margin-bottom: 16px; padding: 12px; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;">
+          <div style="font-weight: 600; margin-bottom: 8px; color: #16a34a; display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> Schema Information
+          </div>
+      `;
+
+      if (hasDbFieldInfo && nodeData.data.fieldInfo.validators) {
+        html += `<div style="font-size: 12px; color: #166534; margin-bottom: 8px;">
+          <strong>From ASN.1 Database:</strong>
+        </div>`;
+
+        nodeData.data.fieldInfo.validators.forEach(validator => {
+          let constraintText = '';
+          if (validator.type === 'size') {
+            constraintText = `Size: ${validator.min} - ${validator.max}`;
+          } else if (validator.type === 'range') {
+            constraintText = `Range: ${validator.min} - ${validator.max}`;
+          } else if (validator.type === 'pattern') {
+            constraintText = `Pattern: ${validator.pattern}`;
+          } else {
+            constraintText = `${validator.type}: ${validator.message || 'See definition'}`;
+          }
+          html += `<div style="font-size: 11px; color: #15803d; padding: 4px 8px; background: #dcfce7; border-radius: 3px; margin-bottom: 4px;">
+            • ${constraintText}
+          </div>`;
+        });
+      }
+
+      if (hasSchemaConstraints) {
+        const sc = nodeData.data.schemaConstraints;
+        html += `<div style="font-size: 12px; color: #166534; margin-top: 8px; margin-bottom: 8px;">
+          <strong>From Schema:</strong>
+        </div>`;
+
+        if (sc.size) {
+          html += `<div style="font-size: 11px; color: #15803d; padding: 4px 8px; background: #dcfce7; border-radius: 3px; margin-bottom: 4px;">
+            • Size: ${sc.size.min !== undefined ? sc.size.min : '0'} - ${sc.size.max !== undefined ? sc.size.max : '∞'}
+          </div>`;
+        }
+        if (sc.range) {
+          html += `<div style="font-size: 11px; color: #15803d; padding: 4px 8px; background: #dcfce7; border-radius: 3px; margin-bottom: 4px;">
+            • Range: ${sc.range.min !== undefined ? sc.range.min : '-∞'} - ${sc.range.max !== undefined ? sc.range.max : '∞'}
+          </div>`;
+        }
+        if (sc.pattern) {
+          html += `<div style="font-size: 11px; color: #15803d; padding: 4px 8px; background: #dcfce7; border-radius: 3px; margin-bottom: 4px;">
+            • Pattern: ${sc.pattern}
+          </div>`;
+        }
+        if (sc.enum) {
+          html += `<div style="font-size: 11px; color: #15803d; padding: 4px 8px; background: #dcfce7; border-radius: 3px; margin-bottom: 4px;">
+            • Allowed values: ${Array.isArray(sc.enum) ? sc.enum.join(', ') : sc.enum}
+          </div>`;
+        }
+      }
+
+      html += `</div>`;
+    }
+
+    html += `
         <div id="constraintsSection" style="display: none;">
           <div class="constraint-field" style="margin-bottom: 16px; padding: 12px; background: #f0f7ff; border-radius: 6px;">
             <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">Node Alias</div>
