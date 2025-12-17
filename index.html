@@ -283,8 +283,8 @@
     <!-- Load D3.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
-    <!-- Load ASN.1 Database Query Library -->
-    <script src="asn1-query-browser.js"></script>
+    <!-- Load ASN.1 Database Query Library (from submodule) -->
+    <script src="asn1-to-js/asn1-query-browser.js"></script>
 
     <!-- Load Web Components and Libraries -->
     <script type="module">
@@ -301,9 +301,9 @@
       window.ASN1SchemaParser = ASN1SchemaParser;
       window.ErlangASN1Analyzer = ErlangASN1Analyzer;
 
-      // Load ASN.1 definitions database
+      // Load ASN.1 definitions database (from submodule)
       console.log("📚 Loading ASN.1 definitions database...");
-      ASN1Database.fromURL('asn1_definitions.json')
+      ASN1Database.fromURL('asn1-to-js/asn1_definitions.json')
         .then(db => {
           window.asn1DB = db;
           console.log(`✅ ASN.1 database loaded: ${db.getAllNames().length} definitions`);

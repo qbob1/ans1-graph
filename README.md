@@ -28,10 +28,15 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 Simply open `index.html` in your browser to try it out!
 
 ```bash
-# Clone and open
-git clone <repo-url>
+# Clone with submodules and open
+git clone --recurse-submodules <repo-url>
 cd ans1-graph
 open index.html
+```
+
+**Note**: This project uses the [asn1-to-js](https://github.com/qbob1/asn1-to-js) submodule for automatic field labeling. If you already cloned without `--recurse-submodules`, run:
+```bash
+git submodule update --init --recursive
 ```
 
 The interface includes:
