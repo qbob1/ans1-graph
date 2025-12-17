@@ -1,0 +1,24 @@
+-- ASN.1 Schema Definition for User Authentication Record
+-- This is a sample schema file demonstrating ASN.1 syntax
+
+UserRecord DEFINITIONS ::= BEGIN
+
+UserRecord ::= SEQUENCE {
+    userId [0] INTEGER,
+    userName [1] UTF8String,
+    userPassword [2] OCTET STRING OPTIONAL,
+    userAttributes [3] SEQUENCE {
+        attributeId INTEGER,
+        attributeValue OCTET STRING
+    } OPTIONAL,
+    description [4] UTF8String OPTIONAL,
+    contactInfo [5] SEQUENCE {
+        firstName UTF8String,
+        lastName UTF8String,
+        email IA5String
+    } OPTIONAL,
+    isActive [6] BOOLEAN OPTIONAL,
+    createdDate [7] UTCTime OPTIONAL
+}
+
+END

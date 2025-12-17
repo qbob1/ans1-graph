@@ -1,0 +1,221 @@
+# ASN.1 Sample Data - Hex Encoded Examples
+
+This file contains hex-encoded ASN.1 data samples for testing the graph viewer.
+
+## How to Use
+
+1. Open `asn1-graph.html` in your browser
+2. Click the ⚙️ button in the top-right corner
+3. Copy one of the hex strings below
+4. Paste it into the "Hex Input" textarea
+5. Click "🔍 Decode"
+6. Watch the graph render!
+
+---
+
+## Example 1: Simple Sequence with Basic Types
+
+**Description:** A SEQUENCE containing an INTEGER, OCTET STRING, and UTF8String
+
+```
+3024020142040B48656C6C6F20576F726C640C0A546573742055736572
+```
+
+**Structure:**
+```
+SEQUENCE {
+  INTEGER: 66 (0x42)
+  OCTET STRING: "Hello World"
+  UTF8String: "Test User"
+}
+```
+
+---
+
+## Example 2: Nested Sequences
+
+**Description:** A SEQUENCE containing nested sequences and multiple data types
+
+```
+3051300F020164040568656C6C6F0201323014020201F4040A746573742076616C7565170D3233313231333132303030305A301E301C020102041654686973206973206120746573742076616C7565
+```
+
+**Structure:**
+```
+SEQUENCE {
+  SEQUENCE {
+    INTEGER: 100
+    OCTET STRING: "hello"
+    INTEGER: 50
+  }
+  SEQUENCE {
+    INTEGER: 500
+    OCTET STRING: "test value"
+    UTCTime: "231213120000Z"
+  }
+  SEQUENCE {
+    SEQUENCE {
+      INTEGER: 258
+      OCTET STRING: "This is a test value"
+    }
+  }
+}
+```
+
+---
+
+## Example 3: Real X.509 Certificate (Simplified)
+
+**Description:** A simplified version of an X.509 certificate structure
+
+```
+3082010A3081B3A003020102020900F1E2D3C4B5A69788300A06082A8648CE3D040302301E311C301A06035504030C13546573742043657274696669636174653020170D3233303130313030303030305A180F39393939313233313233353935395A301E311C301A06035504030C13546573742043657274696669636174653059301306072A8648CE3D020106082A8648CE3D03010703420004AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD300A06082A8648CE3D0403020348003045022100AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD0220AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD
+```
+
+**Structure:** A certificate with:
+- Version
+- Serial Number
+- Signature Algorithm
+- Issuer DN
+- Validity (notBefore, notAfter)
+- Subject DN
+- Public Key Info
+- Signature
+
+---
+
+## Example 4: Context-Specific Tags (Custom Labels Demo)
+
+**Description:** SEQUENCE with context-specific tags - perfect for testing custom labels!
+
+```
+30818AA00302010AA1160414757365722D6964656E746966696572A203020104A31A301802010C0413757365722D617474726962757465A4250C23546869732069732061206C6F6E6720757365722064657363726970746F7220737472696E67A52A30280C0A4669727374204E616D650C094C617374204E616D650C0F757365724064796E616D69632E636F6D
+```
+
+**Structure:**
+```
+SEQUENCE {
+  [0] {                              <- Label this as "version"
+    INTEGER: 10
+  }
+  [1] {                              <- Label this as "userId"
+    OCTET STRING: "user-identifier"
+  }
+  [2] {                              <- Label this as "priority"
+    INTEGER: 260
+  }
+  [3] {                              <- Label this as "attributes"
+    SEQUENCE {
+      INTEGER: 12
+      OCTET STRING: "user-attribute"
+    }
+  }
+  [4] {                              <- Label this as "description"
+    UTF8String: "This is a long user descriptor string"
+  }
+  [5] {                              <- Label this as "contactInfo"
+    SEQUENCE {
+      UTF8String: "First Name"
+      UTF8String: "Last Name"
+      UTF8String: "user@dynamic.com"
+    }
+  }
+}
+```
+
+**Try labeling:** This example has context-specific tags [0] through [5]. Try giving them meaningful names in the custom labels section!
+
+---
+
+## Example 5: Mixed Data Types
+
+**Description:** A comprehensive example with various ASN.1 types
+
+```
+30819F020100020164010100040B48656C6C6F20576F726C64060667810A010101070454455354020100020200FF0A01020B0A41424344454647484909020F00170D3233313231333132303030305A180F39393939313233313233353935395A0C0D5554462D3820537472696E671A0A50726E7461626C65130A417363696953747216045465787412074E756D65726963
+```
+
+**Structure:**
+```
+SEQUENCE {
+  INTEGER: 0
+  INTEGER: 100
+  BOOLEAN: FALSE
+  OCTET STRING: "Hello World"
+  OBJECT IDENTIFIER: 2.999.10.1.1.1
+  ObjectDescriptor: "TEST"
+  INTEGER: 0
+  INTEGER: 255
+  ENUMERATED: 2
+  ENUMERATED: 2699335239
+  REAL: 15.0
+  UTCTime: "231213120000Z"
+  GeneralizedTime: "99991231235959Z"
+  UTF8String: "UTF-8 String"
+  VideotexString: "Prntable"
+  PrintableString: "AsciiStr"
+  IA5String: "Texti"
+  NumericString: "Numeric"
+}
+```
+
+---
+
+## Example 6: Large Nested Structure
+
+**Description:** A deeply nested structure to test graph rendering
+
+```
+3082014B30820101308046300E020101040568656C6C6F301E020102041863686F636F6C61746520737472617762657272793014020103040E6368656572696F20626F7879300A020104040470696E6B300B020105040577686974653049300D0201060407676F6C64656E301E02010704186368616D7061676E652062757474657266696C6573301802010804126C6F67616E6265727279206C696C6163304630190201090413676172646E6572206C756D69657265301E0201640418686F6E65792063616E74656C6F757065206861776B3009020265040370656130440201C8043F54686973206973206120766572792076657279206C6F6E672074657874207468617420676F657320696E746F206D756C7469706C65206C696E6573
+```
+
+**Structure:** A nested SEQUENCE structure with multiple levels and various string types
+
+---
+
+## Quick Copy-Paste Format
+
+### Minimal Test
+```
+3024020142040B48656C6C6F20576F726C640C0A546573742055736572
+```
+
+### Custom Labels Test
+```
+30818AA00302010AA1160414757365722D6964656E746966696572A203020104A31A301802010C0413757365722D617474726962757465A4250C23546869732069732061206C6F6E6720757365722064657363726970746F7220737472696E67A52A30280C0A4669727374204E616D650C094C617374204E616D650C0F757365724064796E616D69632E636F6D
+```
+
+### Complex Structure
+```
+3082010A3081B3A003020102020900F1E2D3C4B5A69788300A06082A8648CE3D040302301E311C301A06035504030C13546573742043657274696669636174653020170D3233303130313030303030305A180F39393939313233313233353935395A301E311C301A06035504030C13546573742043657274696669636174653059301306072A8648CE3D020106082A8648CE3D03010703420004AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD300A06082A8648CE3D0403020348003045022100AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD0220AABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDDAABBCCDD
+```
+
+---
+
+## Tips for Testing
+
+1. **Start Simple:** Try Example 1 first to verify basic functionality
+2. **Test Custom Labels:** Use Example 4 to practice labeling context-specific tags
+3. **Test Performance:** Use Example 6 to see how the graph handles larger structures
+4. **Test Zoom/Pan:** After loading any example, try:
+   - Scroll wheel to zoom in/out
+   - Click and drag background to pan
+   - Click and drag individual nodes to reposition
+
+## Generating Your Own Test Data
+
+You can generate ASN.1 hex data using OpenSSL:
+
+```bash
+# Generate a private key (contains ASN.1 data)
+openssl genrsa -out private.key 2048
+
+# Convert to DER format and get hex
+openssl rsa -in private.key -outform DER -out private.der
+xxd -p private.der | tr -d '\n'
+
+# Or for a certificate
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+openssl x509 -in cert.pem -outform DER -out cert.der
+xxd -p cert.der | tr -d '\n'
+```

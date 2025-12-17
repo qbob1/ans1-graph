@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASN.1 Graph Viewer</title>
+    <title>ASN.1 Graph Viewer - Example</title>
     <style>
       * {
         margin: 0;
@@ -15,110 +15,25 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      }
-
-      body {
-        background: #fafafa;
       }
 
       asn1-graph-viewer {
         width: 100%;
         height: 100%;
       }
-
-      .watermark {
-        position: fixed;
-        bottom: 20px;
-        left: 20px;
-        color: rgba(0, 0, 0, 0.3);
-        font-size: 14px;
-        font-weight: 500;
-        pointer-events: none;
-        z-index: 100;
-      }
-
-      .loading {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        text-align: center;
-        color: #666;
-      }
-
-      .loading-spinner {
-        width: 50px;
-        height: 50px;
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid #667eea;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin: 0 auto 20px;
-      }
-
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-
-      .welcome-message {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        text-align: center;
-        color: #666;
-        max-width: 500px;
-        padding: 40px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-      }
-
-      .welcome-message h1 {
-        color: #333;
-        margin-bottom: 16px;
-        font-size: 28px;
-      }
-
-      .welcome-message p {
-        line-height: 1.6;
-        margin-bottom: 12px;
-      }
-
-      .welcome-icon {
-        font-size: 64px;
-        margin-bottom: 20px;
-      }
-
-      .hidden {
-        display: none;
-      }
     </style>
   </head>
   <body>
-    <!-- Welcome Message -->
-    <div class="welcome-message" id="welcomeMessage">
-      <div class="welcome-icon">📊</div>
-      <h1>ASN.1 Graph Viewer</h1>
-      <p>Click the menu icon (☰) in the top-left corner to get started.</p>
-      <p>Paste your hex-encoded ASN.1 data and click decode to visualize it as an interactive graph.</p>
-    </div>
-
-    <!-- Graph Viewer (full screen) -->
+    <!-- Graph Viewer -->
     <asn1-graph-viewer id="graphViewer"></asn1-graph-viewer>
 
-    <!-- Floating Control Panel -->
+    <!-- Control Panel -->
     <asn1-control-panel id="controlPanel"></asn1-control-panel>
-
-    <!-- Watermark -->
-    <div class="watermark">ASN.1 Graph Viewer</div>
 
     <!-- Load D3.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
-    <!-- Load Web Components and Libraries -->
+    <!-- Load and configure components -->
     <script type="module">
       import { ASN1 } from "https://unpkg.com/@lapo/asn1js@2.0.0/asn1.js";
       import { Hex } from "https://unpkg.com/@lapo/asn1js@2.0.0/hex.js";
@@ -129,23 +44,20 @@
       window.ASN1 = ASN1;
       window.Hex = Hex;
 
-      console.log("✅ All libraries and components loaded");
+      console.log("✅ All libraries loaded");
 
       const graphViewer = document.getElementById("graphViewer");
       const controlPanel = document.getElementById("controlPanel");
-      const welcomeMessage = document.getElementById("welcomeMessage");
 
       // Set graph dimensions
       graphViewer.setAttribute("width", window.innerWidth);
       graphViewer.setAttribute("height", window.innerHeight);
 
-      // Listen for decoded data events
+      // Listen for decoded data events from control panel
       controlPanel.addEventListener("decoded", (event) => {
         const data = event.detail.data;
+        console.log("Received decoded data:", data);
         graphViewer.setData(data);
-
-        // Hide welcome message once data is loaded
-        welcomeMessage.classList.add("hidden");
       });
 
       // Listen for edge labels toggle
@@ -200,29 +112,46 @@
         graphViewer.handleResize();
       });
 
-      // Keyboard shortcuts
-      document.addEventListener("keydown", (e) => {
-        // Ctrl/Cmd + K to toggle control panel
-        if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-          e.preventDefault();
-          const toggleBtn = controlPanel.shadowRoot.getElementById("toggleBtn");
-          toggleBtn.click();
+      // Sample hex data examples
+      const sampleHexData = {
+        simple: "3024020142040B48656C6C6F20576F726C640C0A546573742055736572",
+        customLabels: "30818AA00302010AA1160414757365722D6964656E746966696572A203020104A31A301802010C0413757365722D617474726962757465A4250C23546869732069732061206C6F6E6720757365722064657363726970746F7220737472696E67A52A30280C0A4669727374204E616D650C094C617374204E616D650C0F757365724064796E616D69632E636F6D",
+        nested: "3051300F020164040568656C6C6F0201323014020201F4040A746573742076616C7565170D3233313231333132303030305A301E301C020102041654686973206973206120746573742076616C7565"
+      };
+
+      // Function to load hex data into control panel
+      window.loadHexSample = function(sampleName = 'simple') {
+        const hexData = sampleHexData[sampleName];
+        if (!hexData) {
+          console.error("Unknown sample:", sampleName);
+          console.log("Available samples:", Object.keys(sampleHexData));
+          return;
         }
 
-        // Escape to close control panel
-        if (e.key === "Escape") {
-          const panel = controlPanel.shadowRoot.getElementById("panel");
-          if (panel.classList.contains("open")) {
-            const toggleBtn = controlPanel.shadowRoot.getElementById("toggleBtn");
-            toggleBtn.click();
-          }
+        // Get the control panel and set the hex input
+        const hexInput = controlPanel.shadowRoot.getElementById('hexInput');
+        if (hexInput) {
+          hexInput.value = hexData;
+          console.log(`Loaded ${sampleName} sample into hex input`);
+          console.log("Now click the Decode button in the control panel!");
+        } else {
+          console.error("Could not find hex input field");
         }
-      });
+      };
 
-      console.log("ASN.1 Graph Viewer initialized");
-      console.log("Keyboard shortcuts:");
-      console.log("  Ctrl/Cmd + K: Toggle control panel");
-      console.log("  Escape: Close control panel");
+      // Auto-load simple sample on page load
+      setTimeout(() => {
+        loadHexSample('simple');
+        console.log("\n📊 Sample data loaded into control panel!");
+        console.log("Open the control panel (Ctrl+K or click ⚙️) and click 'Decode'\n");
+      }, 500);
+
+      console.log("ASN.1 Graph Viewer Example Ready!");
+      console.log("\nAvailable samples:");
+      console.log("  loadHexSample('simple')        - Basic SEQUENCE with INTEGER, OCTET STRING, UTF8String");
+      console.log("  loadHexSample('customLabels')  - Test custom labels with context-specific tags");
+      console.log("  loadHexSample('nested')        - Nested sequences");
+      console.log("\nOr paste your own hex data in the control panel (Ctrl+K)");
     </script>
   </body>
 </html>

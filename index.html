@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASN.1 Graph Viewer - Interactive D3 Visualization</title>
+    <meta name="description" content="Visualize ASN.1 data structures as interactive D3 graphs with custom label support">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      body {
+        background: #fafafa;
+      }
+
+      asn1-graph-viewer {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Welcome Screen */
+      .welcome-message {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: #666;
+        max-width: 600px;
+        padding: 50px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+        z-index: 500;
+        animation: fadeIn 0.5s ease-in;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translate(-50%, -45%); }
+        to { opacity: 1; transform: translate(-50%, -50%); }
+      }
+
+      .welcome-message.hidden {
+        display: none;
+      }
+
+      .welcome-icon {
+        font-size: 72px;
+        margin-bottom: 24px;
+        animation: bounce 2s ease-in-out infinite;
+      }
+
+      @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+
+      .welcome-message h1 {
+        color: #333;
+        margin-bottom: 16px;
+        font-size: 32px;
+        font-weight: 700;
+      }
+
+      .welcome-message p {
+        line-height: 1.8;
+        margin-bottom: 16px;
+        font-size: 16px;
+      }
+
+      .welcome-actions {
+        margin-top: 32px;
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+      }
+
+      .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: inline-block;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+      }
+
+      .btn-secondary {
+        background: #f0f0f0;
+        color: #333;
+      }
+
+      .btn-secondary:hover {
+        background: #e0e0e0;
+      }
+
+      .quick-samples {
+        margin-top: 32px;
+        padding-top: 32px;
+        border-top: 1px solid #e0e0e0;
+      }
+
+      .quick-samples h3 {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 16px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .sample-buttons {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .sample-btn {
+        padding: 8px 16px;
+        background: #f9f9f9;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #666;
+      }
+
+      .sample-btn:hover {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+      }
+
+      /* Watermark */
+      .watermark {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        color: rgba(0, 0, 0, 0.25);
+        font-size: 12px;
+        font-weight: 500;
+        pointer-events: none;
+        z-index: 100;
+      }
+
+      /* Keyboard shortcuts help */
+      .shortcuts-hint {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        font-size: 11px;
+        color: #666;
+        z-index: 100;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+      }
+
+      .shortcuts-hint:hover {
+        opacity: 1;
+      }
+
+      .shortcuts-hint kbd {
+        background: #f0f0f0;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 10px;
+        border: 1px solid #ddd;
+      }
+
+      /* Loading indicator */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(250, 250, 250, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        animation: fadeIn 0.3s;
+      }
+
+      .loading-overlay.hidden {
+        display: none;
+      }
+
+      .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading Indicator -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- Welcome Message -->
+    <div class="welcome-message" id="welcomeMessage">
+      <div class="welcome-icon">📊</div>
+      <h1>ASN.1 Graph Viewer</h1>
+      <p>Visualize ASN.1 data structures as beautiful, interactive D3 graphs</p>
+      <p>Click the <strong>☰ menu icon</strong> in the top-left to paste your hex-encoded ASN.1 data, or try a quick sample below!</p>
+
+      <div class="welcome-actions">
+        <button class="btn btn-primary" id="openPanelBtn">
+          Open Control Panel
+        </button>
+        <a class="btn btn-secondary" href="sample-data.md" target="_blank">
+          View Sample Data
+        </a>
+      </div>
+
+      <div class="quick-samples">
+        <h3>Quick Start Samples</h3>
+        <div class="sample-buttons">
+          <button class="sample-btn" data-sample="simple">Simple Sequence</button>
+          <button class="sample-btn" data-sample="nested">Nested Structures</button>
+          <button class="sample-btn" data-sample="customLabels">Custom Labels Demo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graph Viewer (full screen) -->
+    <asn1-graph-viewer id="graphViewer"></asn1-graph-viewer>
+
+    <!-- Floating Control Panel -->
+    <asn1-control-panel id="controlPanel"></asn1-control-panel>
+
+    <!-- Watermark -->
+    <div class="watermark">ASN.1 Graph Viewer v1.0</div>
+
+    <!-- Keyboard Shortcuts Hint -->
+    <div class="shortcuts-hint">
+      <kbd>Ctrl/⌘</kbd>+<kbd>K</kbd> Open Panel &nbsp;|&nbsp;
+      <kbd>Esc</kbd> Close &nbsp;|&nbsp;
+      Mouse Wheel: Zoom &nbsp;|&nbsp;
+      Drag: Pan &nbsp;|&nbsp;
+      Click Node: Edit
+    </div>
+
+    <!-- Load D3.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+    <!-- Load Web Components and Libraries -->
+    <script type="module">
+      import { ASN1 } from "https://unpkg.com/@lapo/asn1js@2.0.0/asn1.js";
+      import { Hex } from "https://unpkg.com/@lapo/asn1js@2.0.0/hex.js";
+      import { ASN1SchemaParser } from "./asn1-schema-parser.js";
+      import { ErlangASN1Analyzer } from "./erlang-asn1-analyzer.js";
+      import { ASN1GraphViewer } from "./asn1-graph-viewer.js";
+      import { ASN1ControlPanel } from "./asn1-control-panel.js";
+
+      // Make ASN1, Hex, and parsers available globally for the web components
+      window.ASN1 = ASN1;
+      window.Hex = Hex;
+      window.ASN1SchemaParser = ASN1SchemaParser;
+      window.ErlangASN1Analyzer = ErlangASN1Analyzer;
+
+      console.log("✅ All libraries and components loaded");
+
+      const graphViewer = document.getElementById("graphViewer");
+      const controlPanel = document.getElementById("controlPanel");
+      const welcomeMessage = document.getElementById("welcomeMessage");
+      const loadingOverlay = document.getElementById("loadingOverlay");
+      const openPanelBtn = document.getElementById("openPanelBtn");
+
+      // Set graph dimensions
+      function updateGraphDimensions() {
+        graphViewer.setAttribute("width", window.innerWidth);
+        graphViewer.setAttribute("height", window.innerHeight);
+      }
+
+      updateGraphDimensions();
+
+      // Sample hex data
+      const sampleHexData = {
+        simple: "3024020142040B48656C6C6F20576F726C640C0A546573742055736572",
+        customLabels: "30818AA00302010AA1160414757365722D6964656E746966696572A203020104A31A301802010C0413757365722D617474726962757465A4250C23546869732069732061206C6F6E6720757365722064657363726970746F7220737472696E67A52A30280C0A4669727374204E616D650C094C617374204E616D650C0F757365724064796E616D69632E636F6D",
+        nested: "3051300F020164040568656C6C6F0201323014020201F4040A746573742076616C7565170D3233313231333132303030305A301E301C020102041654686973206973206120746573742076616C7565"
+      };
+
+      // Load sample data
+      function loadSample(sampleName) {
+        const hexData = sampleHexData[sampleName];
+        if (!hexData) {
+          console.error("Unknown sample:", sampleName);
+          return;
+        }
+
+        loadingOverlay.classList.remove("hidden");
+
+        setTimeout(() => {
+          const hexInput = controlPanel.shadowRoot.getElementById("hexInput");
+          if (hexInput) {
+            hexInput.value = hexData;
+            // Trigger decode
+            const decodeBtn = controlPanel.shadowRoot.getElementById("decodeBtn");
+            if (decodeBtn) {
+              decodeBtn.click();
+            }
+          }
+          loadingOverlay.classList.add("hidden");
+        }, 300);
+      }
+
+      // Open control panel button
+      openPanelBtn.addEventListener("click", () => {
+        const toggleBtn = controlPanel.shadowRoot.getElementById("toggleBtn");
+        if (toggleBtn) {
+          toggleBtn.click();
+        }
+      });
+
+      // Sample buttons
+      document.querySelectorAll(".sample-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const sample = btn.dataset.sample;
+          loadSample(sample);
+        });
+      });
+
+      // Listen for decoded data events
+      controlPanel.addEventListener("decoded", (event) => {
+        const data = event.detail.data;
+        console.log("Received decoded data:", data);
+
+        loadingOverlay.classList.remove("hidden");
+
+        setTimeout(() => {
+          // If data is an array with single element, unwrap it
+          const graphData = (Array.isArray(data) && data.length === 1) ? data[0] : data;
+          graphViewer.setData(graphData);
+
+          // Hide welcome message once data is loaded
+          welcomeMessage.classList.add("hidden");
+          loadingOverlay.classList.add("hidden");
+        }, 100);
+      });
+
+      // Listen for edge labels toggle
+      controlPanel.addEventListener("edgeLabelsChanged", (event) => {
+        graphViewer.setEdgeLabels(event.detail.show);
+      });
+
+      // Listen for spacing changes
+      controlPanel.addEventListener("spacingChanged", (event) => {
+        graphViewer.setSpacing(event.detail.spacing, event.detail.spacing * 2.5);
+      });
+
+      // Listen for configuration export
+      controlPanel.addEventListener("exportConfiguration", () => {
+        const config = graphViewer.exportConfiguration();
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `asn1-constraints-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      // Listen for configuration import
+      controlPanel.addEventListener("importConfiguration", (event) => {
+        graphViewer.importConfiguration(event.detail.config);
+        controlPanel.updateRulesDisplay(event.detail.config);
+      });
+
+      // Listen for configuration request
+      controlPanel.addEventListener("requestConfiguration", () => {
+        const config = graphViewer.exportConfiguration();
+        controlPanel.updateRulesDisplay(config);
+      });
+
+      // Listen for constraints changes from graph viewer
+      graphViewer.addEventListener("constraintsChanged", () => {
+        const config = graphViewer.exportConfiguration();
+        controlPanel.updateRulesDisplay(config);
+      });
+
+      graphViewer.addEventListener("configurationImported", () => {
+        const config = graphViewer.exportConfiguration();
+        controlPanel.updateRulesDisplay(config);
+      });
+
+      // Schema management events
+      controlPanel.addEventListener("schemaImport", (event) => {
+        const success = graphViewer.importSchema(event.detail.schema);
+        if (success) {
+          const schemas = graphViewer.getSchemas();
+          controlPanel.updateSchemaList(schemas);
+        }
+      });
+
+      controlPanel.addEventListener("schemaSelected", (event) => {
+        graphViewer.setActiveSchema(event.detail.schemaName);
+      });
+
+      controlPanel.addEventListener("applySchema", () => {
+        const success = graphViewer.applyActiveSchema();
+        if (success) {
+          console.log("✅ Schema applied successfully");
+        } else {
+          console.error("❌ Failed to apply schema");
+        }
+      });
+
+      controlPanel.addEventListener("clearSchemas", () => {
+        graphViewer.clearSchemas();
+      });
+
+      graphViewer.addEventListener("schemaImported", (event) => {
+        console.log("Schema imported:", event.detail.schema.name);
+      });
+
+      graphViewer.addEventListener("activeSchemaChanged", (event) => {
+        console.log("Active schema changed to:", event.detail.schema.name);
+      });
+
+      graphViewer.addEventListener("schemaApplied", (event) => {
+        console.log("Schema applied:", event.detail.schema.name);
+      });
+
+      // Export tag map
+      controlPanel.addEventListener("exportTagMap", () => {
+        const schemas = graphViewer.getSchemas();
+        if (schemas.length === 0) {
+          console.warn("No schemas loaded to export tag map");
+          return;
+        }
+
+        const tagMap = window.ErlangASN1Analyzer.generateTagMap(schemas);
+
+        const blob = new Blob([JSON.stringify(tagMap, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tag-map-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        console.log("Tag map exported:", tagMap);
+      });
+
+      // Handle window resize
+      let resizeTimeout;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          updateGraphDimensions();
+          graphViewer.handleResize();
+        }, 250);
+      });
+
+      // Keyboard shortcuts
+      document.addEventListener("keydown", (e) => {
+        // Ctrl/Cmd + K to toggle control panel
+        if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+          e.preventDefault();
+          const toggleBtn = controlPanel.shadowRoot.getElementById("toggleBtn");
+          if (toggleBtn) {
+            toggleBtn.click();
+          }
+        }
+
+        // Escape to close control panel or welcome
+        if (e.key === "Escape") {
+          const panel = controlPanel.shadowRoot.getElementById("panel");
+          if (panel && panel.classList.contains("open")) {
+            const toggleBtn = controlPanel.shadowRoot.getElementById("toggleBtn");
+            if (toggleBtn) {
+              toggleBtn.click();
+            }
+          } else if (!welcomeMessage.classList.contains("hidden")) {
+            welcomeMessage.classList.add("hidden");
+          }
+        }
+
+        // Press 'h' to show/hide welcome
+        if (e.key === "h" && !e.ctrlKey && !e.metaKey) {
+          welcomeMessage.classList.toggle("hidden");
+        }
+      });
+
+      // Console helpers
+      window.loadSample = loadSample;
+      window.graphViewer = graphViewer;
+      window.controlPanel = controlPanel;
+
+      // Initialize
+      console.log("%c🎨 ASN.1 Graph Viewer", "font-size: 20px; font-weight: bold; color: #667eea;");
+      console.log("\n📝 Available Commands:");
+      console.log("  loadSample('simple')        - Load simple SEQUENCE example");
+      console.log("  loadSample('nested')        - Load nested structures");
+      console.log("  loadSample('customLabels')  - Load context-specific tags");
+      console.log("\n⌨️  Keyboard Shortcuts:");
+      console.log("  Ctrl/Cmd + K  - Toggle control panel");
+      console.log("  Escape        - Close panel/welcome");
+      console.log("  H             - Show/hide welcome screen");
+      console.log("\n🖱️  Mouse Controls:");
+      console.log("  Scroll Wheel  - Zoom in/out");
+      console.log("  Click + Drag  - Pan (background) or Move (nodes)");
+      console.log("\n📊 Components:");
+      console.log("  graphViewer   - Graph visualization component");
+      console.log("  controlPanel  - Control panel component");
+    </script>
+  </body>
+</html>
