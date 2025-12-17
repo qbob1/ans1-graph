@@ -851,9 +851,17 @@ class ASN1ControlPanel extends HTMLElement {
     const elementTree = this.shadowRoot.getElementById("elementTree");
     const elementSearch = this.shadowRoot.getElementById("elementSearch");
 
+    console.log("🔍 updateElementExplorer called with", schemas?.length || 0, "schemas");
+    console.log("  elementTree:", elementTree);
+    console.log("  elementSearch:", elementSearch);
+
     if (!schemas || schemas.length === 0) {
-      elementTree.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #999;">Load schemas to explore elements</div>';
-      elementSearch.style.display = 'none';
+      if (elementTree) {
+        elementTree.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #999;">Load schemas to explore elements</div>';
+      }
+      if (elementSearch) {
+        elementSearch.style.display = 'none';
+      }
       return;
     }
 
