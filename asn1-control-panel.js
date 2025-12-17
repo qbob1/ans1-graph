@@ -1094,14 +1094,26 @@ class ASN1ControlPanel extends HTMLElement {
         const def = window.asn1DB.getByName(name);
         if (def && def.kind === 'typedef' && def.type === 'SEQUENCE') {
           // Convert to our schema format
+          const schemaRoot = {
+            type: def.type,
+            fields: this.convertDbFieldsToSchema(def.fields || [])
+          };
+
+          // Add root-level tag if available (e.g., APPLICATION tags on ProfileElement)
+          if (def.tags && def.tags.length > 0) {
+            const tag = def.tags[0];
+            schemaRoot.tag = {
+              class: this.tagClassToNumber(tag.class),
+              number: tag.number
+            };
+            console.log(`  📌 Schema ${def.name} has root tag: ${tag.class} ${tag.number}`);
+          }
+
           const schema = {
             name: def.name,
             version: "1.0",
             description: `From asn1-to-js database (line ${def.line || 'unknown'})`,
-            root: {
-              type: def.type,
-              fields: this.convertDbFieldsToSchema(def.fields || [])
-            },
+            root: schemaRoot,
             allTypes: [{
               name: def.name,
               type: def.type,
