@@ -846,10 +846,11 @@ class ASN1GraphViewer extends HTMLElement {
             // Use schema field info
             fieldInfo = schemaField;
           }
+          // If we have a parent schema but didn't find a match,
+          // DON'T search other schemas - this is likely an undefined field in this schema's context
         }
-
-        // If no parent schema match, search ALL loaded schemas
-        if (!fieldLabel && this.schemas && this.schemas.length > 0) {
+        // Only search all schemas if we have NO parent schema context
+        else if (!fieldLabel && this.schemas && this.schemas.length > 0) {
           for (const schema of this.schemas) {
             const schemaRoot = schema.root || schema;
             if (schemaRoot.fields && Array.isArray(schemaRoot.fields)) {
