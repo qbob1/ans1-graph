@@ -794,6 +794,27 @@ class ASN1GraphViewer extends HTMLElement {
           }
         }
 
+        // If no parent schema match, search ALL loaded schemas
+        if (!fieldLabel && this.schemas && this.schemas.length > 0) {
+          for (const schema of this.schemas) {
+            const schemaRoot = schema.root || schema;
+            if (schemaRoot.fields && Array.isArray(schemaRoot.fields)) {
+              const matchedField = schemaRoot.fields.find(field =>
+                field.tag &&
+                field.tag.class === tagClass &&
+                field.tag.number === tagNumber
+              );
+
+              if (matchedField) {
+                schemaField = matchedField;
+                fieldLabel = matchedField.name;
+                fieldInfo = matchedField;
+                break; // Found a match, stop searching
+              }
+            }
+          }
+        }
+
         // Fall back to ASN.1 database lookup if no schema match
         if (!fieldLabel && window.asn1DB) {
           const tagClassName = this.getTagClassName(tagClass);
