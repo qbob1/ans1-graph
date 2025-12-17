@@ -6,8 +6,10 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 
 - ✨ **Framework-agnostic**: Use in React, Vue, Angular, or vanilla HTML
 - 🎨 **Interactive D3 visualization**: Zoom and pan the graph
+- 🤖 **Automatic field labeling**: Fields labeled automatically from ASN.1 definition database
 - 🏷️ **Custom label management**: Define custom names for ASN.1 tags
 - 📋 **Schema import**: Load ASN.1 schema definitions to auto-apply field names and constraints
+- 🔧 **Erlang profile support**: Import compiled Erlang ASN.1 profiles (.erl/.hrl files)
 - 📁 **DER file import**: Load .der/.ber files directly (no hex conversion needed)
 - 📱 **Responsive**: Full-screen graph with left-side drawer panel
 - 🎯 **Clean drawer UI**: All controls in a beautiful slide-out drawer
@@ -19,6 +21,7 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - 🔧 **Auto-length calculation**: Length field updates automatically when content is edited
 - ⚙️ **Configurable display**: Toggle edge labels and adjust node spacing with slider controls
 - 🛡️ **Constraint validation**: Define and enforce validation rules for node fields
+- 📊 **Rich type information**: Constraints, enums, optional/mandatory flags from definitions
 
 ## Live Demo
 
@@ -280,9 +283,49 @@ When you save changes:
 - If you edit the "content" field, the "length" field is automatically recalculated based on the byte length of the new content
 - Length fields are protected from editing when the node has children (SEQUENCE/SET types)
 
+### Automatic Field Labeling 🆕
+
+The viewer now includes an **integrated ASN.1 definitions database** that automatically labels fields in your decoded DER data without requiring manual schema import!
+
+**How It Works**
+- Database loads automatically on page load (`asn1_definitions.json`)
+- Contains 71 type definitions with complete field metadata
+- Fields are matched by tag class and number
+- Labels appear automatically: `SEQUENCE (fieldName) [2]`
+
+**What You Get**
+- **Field names**: Instead of generic "SEQUENCE [2]", see "SEQUENCE (mandated) [2]"
+- **Type information**: Full ASN.1 type details for each field
+- **Constraints**: Size limits, ranges, enumerations
+- **Optional flags**: Know which fields are OPTIONAL vs MANDATORY
+- **Named values**: INTEGER fields with named enumerations (e.g., algorithmID: 1=milenage, 2=tuak)
+
+**Example Before/After**
+```
+Before: SEQUENCE [0]          After: SEQUENCE (df-saip-header) [0]
+        SEQUENCE [1]                  SEQUENCE (templateID) [1]
+        SEQUENCE [2]                  SEQUENCE (df-df-saip) [2]
+```
+
+**Included Definitions**
+The database includes definitions from the GSMA SGP.22 profile specification:
+- `ProprietaryInfo`, `Fcp`, `File` - File management structures
+- `PE-*` types - Profile element types (USIM, ISIM, CSIM, etc.)
+- `AlgoParameter`, `AKAParameter` - Security algorithm configurations
+- `ApplicationInstance`, `SecurityDomain` - Application management
+- `FileManagement`, `PINConfiguration` - Administrative structures
+- And 60+ more complete type definitions
+
+**Database Source**
+Powered by [asn1-to-js](https://github.com/qbob1/asn1-to-js) - converts Erlang ASN.1 compiled databases to JavaScript-queryable JSON format.
+
+**Note**: If database loading fails, the viewer still works normally but without automatic field labels. You can still use manual schema import or custom label definitions.
+
+---
+
 ### Schema Import
 
-Import ASN.1 schema definitions to automatically apply field names and constraints to your decoded data:
+Import additional ASN.1 schema definitions to automatically apply field names and constraints to your decoded data:
 
 **Supported Schema Formats**
 - **JSON format** (`.json`) - Custom JSON schema format defining structure, field names, tags, and constraints
