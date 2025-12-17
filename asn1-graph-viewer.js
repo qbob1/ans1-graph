@@ -803,8 +803,10 @@ class ASN1GraphViewer extends HTMLElement {
 
       obj.forEach((item, index) => {
         if (typeof item === "object" && item !== null) {
+          // For each item in array, find its own matching schema
+          const itemSchema = this.findMatchingSchema(item);
           node.children.push(
-            this.jsonToHierarchy(item, `[${index}]`, `${path}[${index}]`)
+            this.jsonToHierarchy(item, `[${index}]`, `${path}[${index}]`, itemSchema)
           );
         } else {
           // Omit content - don't display primitive values
@@ -984,6 +986,23 @@ class ASN1GraphViewer extends HTMLElement {
       return null;
     }
 
+    console.log('🔎 findMatchingSchema for obj:', {
+      name: obj.name,
+      type: obj.type,
+      tagClass: obj.tagClass,
+      tagNumber: obj.tagNumber
+    });
+
+    // First, try to match by schema name (most specific)
+    if (obj.name) {
+      for (const schema of this.schemas) {
+        if (schema.name === obj.name) {
+          console.log('  ✓ Matched by name:', schema.name);
+          return schema.root || schema;
+        }
+      }
+    }
+
     // Try to match by type and tag
     for (const schema of this.schemas) {
       const schemaRoot = schema.root || schema;
@@ -993,16 +1012,16 @@ class ASN1GraphViewer extends HTMLElement {
         // If both have tags, match them too
         if (obj.tagClass !== undefined && schemaRoot.tag) {
           if (schemaRoot.tag.class === obj.tagClass && schemaRoot.tag.number === obj.tagNumber) {
+            console.log('  ✓ Matched by type+tag:', schema.name, 'type:', obj.type, 'tag:', obj.tagClass + ':' + obj.tagNumber);
             return schemaRoot;
           }
-        } else {
-          // Type match is good enough if no tags to compare
-          return schemaRoot;
         }
+        // Don't return on type-only match - continue searching for better match
       }
     }
 
-    // No specific match needed - all schemas are searchable globally
+    console.log('  ✗ No schema match found');
+    // No specific match found
     return null;
   }
 
