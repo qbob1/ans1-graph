@@ -519,13 +519,6 @@ class ASN1ControlPanel extends HTMLElement {
             </div>
 
             <div id="schemaControls" style="display: none; margin-top: 12px;">
-              <label style="font-size: 12px; color: #666; display: block; margin-bottom: 8px;">
-                Active Schema:
-              </label>
-              <select id="schemaSelector" style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 12px;">
-                <option value="">-- Select Schema --</option>
-              </select>
-              <button class="btn-primary" id="applySchema">✓ Apply Schema to Data</button>
               <button class="btn-secondary" id="clearSchemas">✕ Clear All Schemas</button>
             </div>
           </div>
@@ -678,8 +671,6 @@ class ASN1ControlPanel extends HTMLElement {
     const importSchemaBtn = this.shadowRoot.getElementById("importSchema");
     const loadAsn1DbBtn = this.shadowRoot.getElementById("loadAsn1Database");
     const schemaFileInput = this.shadowRoot.getElementById("schemaFileInput");
-    const schemaSelector = this.shadowRoot.getElementById("schemaSelector");
-    const applySchemaBtn = this.shadowRoot.getElementById("applySchema");
     const clearSchemasBtn = this.shadowRoot.getElementById("clearSchemas");
 
     importSchemaBtn.addEventListener("click", () => {
@@ -697,24 +688,6 @@ class ASN1ControlPanel extends HTMLElement {
       }
       // Reset file input
       schemaFileInput.value = '';
-    });
-
-    schemaSelector.addEventListener("change", (e) => {
-      const schemaName = e.target.value;
-      if (schemaName) {
-        this.dispatchEvent(new CustomEvent("schemaSelected", {
-          detail: { schemaName: schemaName },
-          bubbles: true,
-          composed: true
-        }));
-      }
-    });
-
-    applySchemaBtn.addEventListener("click", () => {
-      this.dispatchEvent(new CustomEvent("applySchema", {
-        bubbles: true,
-        composed: true
-      }));
     });
 
     clearSchemasBtn.addEventListener("click", () => {
@@ -847,15 +820,6 @@ class ASN1ControlPanel extends HTMLElement {
         const index = parseInt(item.dataset.schemaIndex);
         this.showSchemaViewer(schemas[index]);
       });
-    });
-
-    // Update selector dropdown
-    schemaSelector.innerHTML = '<option value="">-- Select Schema --</option>';
-    schemas.forEach(schema => {
-      const option = document.createElement('option');
-      option.value = schema.name;
-      option.textContent = schema.name;
-      schemaSelector.appendChild(option);
     });
   }
 

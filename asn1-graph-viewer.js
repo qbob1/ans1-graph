@@ -16,7 +16,6 @@ class ASN1GraphViewer extends HTMLElement {
     this.levelSeparation = 200; // Default horizontal spacing
     this.constraints = {}; // Store constraints by node path
     this.schemas = []; // Store loaded ASN.1 schemas
-    this.activeSchema = null; // Currently active schema
   }
 
   connectedCallback() {
@@ -477,47 +476,6 @@ class ASN1GraphViewer extends HTMLElement {
   }
 
   /**
-   * Set the active schema
-   * @param {string} schemaName - Name of the schema to activate
-   */
-  setActiveSchema(schemaName) {
-    const schema = this.schemas.find(s => s.name === schemaName);
-    if (schema) {
-      this.activeSchema = schema;
-      this.dispatchEvent(new CustomEvent("activeSchemaChanged", {
-        detail: { schema: schema },
-        bubbles: true,
-        composed: true
-      }));
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Apply active schema to the current data
-   */
-  applyActiveSchema() {
-    if (!this.activeSchema || !this.data) {
-      return false;
-    }
-
-    // Apply schema to data
-    this.applySchemaToData(this.data, this.activeSchema.root);
-
-    // Re-render with schema-applied names
-    this.renderJson(this.data);
-
-    this.dispatchEvent(new CustomEvent("schemaApplied", {
-      detail: { schema: this.activeSchema },
-      bubbles: true,
-      composed: true
-    }));
-
-    return true;
-  }
-
-  /**
    * Apply schema to ASN.1 data recursively
    * @param {Object} data - ASN.1 data object
    * @param {Object} schemaDef - Schema definition
@@ -608,7 +566,6 @@ class ASN1GraphViewer extends HTMLElement {
    */
   clearSchemas() {
     this.schemas = [];
-    this.activeSchema = null;
     this.dispatchEvent(new CustomEvent("schemasCleared", {
       bubbles: true,
       composed: true
@@ -929,11 +886,6 @@ class ASN1GraphViewer extends HTMLElement {
       return null;
     }
 
-    // If there's an active schema, use it
-    if (this.activeSchema) {
-      return this.activeSchema.root || this.activeSchema;
-    }
-
     // Try to match by type and tag
     for (const schema of this.schemas) {
       const schemaRoot = schema.root || schema;
@@ -952,11 +904,7 @@ class ASN1GraphViewer extends HTMLElement {
       }
     }
 
-    // If only one schema is loaded, use it
-    if (this.schemas.length === 1) {
-      return this.schemas[0].root || this.schemas[0];
-    }
-
+    // No specific match needed - all schemas are searchable globally
     return null;
   }
 
