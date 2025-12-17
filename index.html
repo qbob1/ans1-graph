@@ -319,6 +319,12 @@
       const loadingOverlay = document.getElementById("loadingOverlay");
       const openPanelBtn = document.getElementById("openPanelBtn");
 
+      console.log("🔧 DOM Elements:");
+      console.log("  graphViewer:", graphViewer);
+      console.log("  controlPanel:", controlPanel);
+      console.log("  welcomeMessage:", welcomeMessage);
+      console.log("  loadingOverlay:", loadingOverlay);
+
       // Set graph dimensions
       function updateGraphDimensions() {
         graphViewer.setAttribute("width", window.innerWidth);
@@ -326,6 +332,7 @@
       }
 
       updateGraphDimensions();
+      console.log("📐 Graph dimensions set:", window.innerWidth, "x", window.innerHeight);
 
       // Sample hex data
       const sampleHexData = {
@@ -376,19 +383,26 @@
 
       // Listen for decoded data events
       controlPanel.addEventListener("decoded", (event) => {
+        console.log("🎯 DECODED EVENT RECEIVED");
         const data = event.detail.data;
-        console.log("Received decoded data:", data);
+        console.log("📦 Decoded data:", data);
+        console.log("📊 Data type:", typeof data, "Is array:", Array.isArray(data));
 
         loadingOverlay.classList.remove("hidden");
+        console.log("⏳ Loading overlay shown");
 
         setTimeout(() => {
           // If data is an array with single element, unwrap it
           const graphData = (Array.isArray(data) && data.length === 1) ? data[0] : data;
+          console.log("🎨 Setting graph data:", graphData);
+
           graphViewer.setData(graphData);
+          console.log("✅ graphViewer.setData() called");
 
           // Hide welcome message once data is loaded
           welcomeMessage.classList.add("hidden");
           loadingOverlay.classList.add("hidden");
+          console.log("✅ Graph rendering complete");
         }, 100);
       });
 
