@@ -759,14 +759,18 @@ class ASN1GraphViewer extends HTMLElement {
       });
     } else if (typeof obj === "object" && obj !== null) {
       // Determine node name with tag information
-      let nodeName = name;
-      let tagInfo = "";
+      let baseType = null;
+      let fieldLabel = null;
       let schemaField = null;
+      let fieldInfo = null;
 
+      // Get the base type from the ASN.1 data
       if (obj.name) {
-        nodeName = obj.name;
+        baseType = obj.name;
       } else if (obj.type) {
-        nodeName = obj.type;
+        baseType = obj.type;
+      } else {
+        baseType = name;
       }
 
       // Add application-relevant tag information
@@ -775,9 +779,6 @@ class ASN1GraphViewer extends HTMLElement {
         const tagNumber = obj.tagNumber;
 
         // First, try to get field info from parent schema
-        let fieldLabel = null;
-        let fieldInfo = null;
-
         if (parentSchema && parentSchema.fields && Array.isArray(parentSchema.fields)) {
           // Look for matching field by tag class and number
           schemaField = parentSchema.fields.find(field =>
@@ -806,18 +807,6 @@ class ASN1GraphViewer extends HTMLElement {
           }
         }
 
-        // Show tag info for non-universal tags
-        if (tagClass === 1) {
-          // Application
-          tagInfo = fieldLabel ? ` (${fieldLabel}) [APPLICATION ${tagNumber}]` : ` [APPLICATION ${tagNumber}]`;
-        } else if (tagClass === 2) {
-          // Context-specific
-          tagInfo = fieldLabel ? ` (${fieldLabel}) [${tagNumber}]` : ` [${tagNumber}]`;
-        } else if (tagClass === 3) {
-          // Private
-          tagInfo = fieldLabel ? ` (${fieldLabel}) [PRIVATE ${tagNumber}]` : ` [PRIVATE ${tagNumber}]`;
-        }
-
         // Store database info in node for later use
         if (fieldInfo) {
           node.fieldInfo = fieldInfo;
@@ -834,7 +823,41 @@ class ASN1GraphViewer extends HTMLElement {
         node.schemaConstraints = schemaField.constraints;
       }
 
-      node.name = nodeName + tagInfo;
+      // Build the final node name: prioritize field name, fall back to type
+      let nodeName = "";
+      let typeInfo = "";
+      let tagInfo = "";
+
+      if (fieldLabel) {
+        // Field name is primary
+        nodeName = fieldLabel;
+        // Show type as secondary info if it's different from the field name
+        if (baseType && baseType !== fieldLabel) {
+          typeInfo = ` (${baseType})`;
+        }
+      } else {
+        // No field name, use type as primary
+        nodeName = baseType;
+      }
+
+      // Add tag number info for non-universal tags
+      if (obj.tagClass !== undefined && obj.tagNumber !== undefined) {
+        const tagClass = obj.tagClass;
+        const tagNumber = obj.tagNumber;
+
+        if (tagClass === 1) {
+          // Application
+          tagInfo = ` [APPLICATION ${tagNumber}]`;
+        } else if (tagClass === 2) {
+          // Context-specific
+          tagInfo = ` [${tagNumber}]`;
+        } else if (tagClass === 3) {
+          // Private
+          tagInfo = ` [PRIVATE ${tagNumber}]`;
+        }
+      }
+
+      node.name = nodeName + typeInfo + tagInfo;
 
       // Determine schema to pass to children
       let childSchema = null;
