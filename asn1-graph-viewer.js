@@ -846,16 +846,11 @@ class ASN1GraphViewer extends HTMLElement {
 
       // Build the final node name: prioritize field name, fall back to type
       let nodeName = "";
-      let typeInfo = "";
       let tagInfo = "";
 
       if (fieldLabel) {
-        // Field name is primary
+        // Field name is primary - don't show type
         nodeName = fieldLabel;
-        // Show type as secondary info if it's different from the field name
-        if (baseType && baseType !== fieldLabel) {
-          typeInfo = ` (${baseType})`;
-        }
       } else {
         // No field name, use type as primary
         nodeName = baseType;
@@ -878,7 +873,7 @@ class ASN1GraphViewer extends HTMLElement {
         }
       }
 
-      node.name = nodeName + typeInfo + tagInfo;
+      node.name = nodeName + tagInfo;
 
       // Determine schema to pass to children
       let childSchema = null;
