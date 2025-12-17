@@ -9,7 +9,7 @@ A standalone web component for visualizing ASN.1 data structures as interactive 
 - 🤖 **Automatic field labeling**: Fields labeled automatically from ASN.1 definition database
 - 🏷️ **Custom label management**: Define custom names for ASN.1 tags
 - 📋 **Schema import**: Load ASN.1 schema definitions to auto-apply field names and constraints
-- 🔧 **Erlang profile support**: Import compiled Erlang ASN.1 profiles (.erl/.hrl files)
+- 📚 **ASN.1 database loader**: Import 71 pre-defined types from asn1-to-js with one click
 - 📁 **DER file import**: Load .der/.ber files directly (no hex conversion needed)
 - 📱 **Responsive**: Full-screen graph with left-side drawer panel
 - 🎯 **Clean drawer UI**: All controls in a beautiful slide-out drawer
@@ -330,27 +330,25 @@ Powered by [asn1-to-js](https://github.com/qbob1/asn1-to-js) - converts Erlang A
 
 ### Schema Import
 
-Import additional ASN.1 schema definitions to automatically apply field names and constraints to your decoded data:
+Import ASN.1 schema definitions to apply field names and constraints to your decoded data:
 
 **Supported Schema Formats**
+- **ASN.1 database** (built-in) - 71 pre-defined types from asn1-to-js with one click
 - **JSON format** (`.json`) - Custom JSON schema format defining structure, field names, tags, and constraints
 - **ASN.1 schema files** (`.asn`, `.asn1`) - Native ASN.1 schema definition files
-- **Erlang ASN.1 profiles** (`.erl`, `.hrl`) - Compiled ASN.1 profiles from Erlang with auto tag extraction
 - See `schema-format.md` for JSON format documentation
-- See `erlang-profiles.md` for Erlang profile analyzer documentation
-- Example schemas: `sample-schema.json` (JSON), `sample-schema.asn1` (ASN.1), `sample-erlang-profile.erl` (Erlang)
+- Example schemas: `sample-schema.json` (JSON), `sample-schema.asn1` (ASN.1)
 
 **How to Use**
 1. Decode your hex DER data first
 2. Open the "Schema Management" section in the control panel
-3. **Import a schema**:
-   - Click "📋 Import Schema" for .json, .asn, or .asn1 files
-   - Click "🔧 Import Erlang Profile" for .erl or .hrl files (can select multiple)
+3. **Load schemas**:
+   - Click "📚 Load ASN.1 DB" to import all 71 pre-defined types from the asn1-to-js database
+   - OR click "📋 Import Schema" for custom .json, .asn, or .asn1 files
 4. Click on any schema in the list to **view its full definition** in a popup
 5. Select the schema from the dropdown to make it active
 6. Click "✓ Apply Schema to Data"
 7. Field names and constraints will be applied to your data
-8. **Optional**: Click "📊 Export Tag Map" to download a tag mapping JSON file
 
 **Schema Viewer**
 - Click on any imported schema name (with 👁️ icon) to view its complete definition

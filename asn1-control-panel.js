@@ -503,16 +503,15 @@ class ASN1ControlPanel extends HTMLElement {
           <div class="section">
             <div class="section-title">Schema Management</div>
             <p style="font-size: 12px; color: #666; margin-bottom: 12px;">
-              Import and apply ASN.1 schemas to decoded data
+              Import ASN.1 schemas to apply field names to decoded data
             </p>
             <div style="display: flex; gap: 8px; margin-bottom: 12px;">
               <button class="btn-secondary" id="importSchema">📋 Import Schema</button>
-              <button class="btn-secondary" id="importErlangProfile">🔧 Import Erlang Profile</button>
+              <button class="btn-secondary" id="loadAsn1Database">📚 Load ASN.1 DB</button>
             </div>
             <input type="file" id="schemaFileInput" accept=".json,.asn,.asn1" style="display: none;">
-            <input type="file" id="erlangFileInput" accept=".erl,.hrl,.asn1db" multiple style="display: none;">
             <div style="font-size: 11px; color: #999; padding: 8px; background: #f8f9fa; border-radius: 4px; margin-bottom: 12px;">
-              💡 <strong>Tip:</strong> For Erlang profiles, import <strong>both .erl and .hrl</strong> files together for complete type information. The .erl file contains field types in comments.
+              💡 <strong>Tip:</strong> Click "Load ASN.1 DB" to import 71 pre-defined types from the asn1-to-js database, or use "Import Schema" for custom .asn1 or .json schemas.
             </div>
 
             <div id="schemaList" style="margin-top: 16px;">
@@ -528,7 +527,6 @@ class ASN1ControlPanel extends HTMLElement {
               </select>
               <button class="btn-primary" id="applySchema">✓ Apply Schema to Data</button>
               <button class="btn-secondary" id="clearSchemas">✕ Clear All Schemas</button>
-              <button class="btn-secondary" id="exportTagMap" style="margin-top: 8px;">📊 Export Tag Map</button>
             </div>
           </div>
         </div>
@@ -678,20 +676,18 @@ class ASN1ControlPanel extends HTMLElement {
 
     // Schema management
     const importSchemaBtn = this.shadowRoot.getElementById("importSchema");
-    const importErlangBtn = this.shadowRoot.getElementById("importErlangProfile");
+    const loadAsn1DbBtn = this.shadowRoot.getElementById("loadAsn1Database");
     const schemaFileInput = this.shadowRoot.getElementById("schemaFileInput");
-    const erlangFileInput = this.shadowRoot.getElementById("erlangFileInput");
     const schemaSelector = this.shadowRoot.getElementById("schemaSelector");
     const applySchemaBtn = this.shadowRoot.getElementById("applySchema");
     const clearSchemasBtn = this.shadowRoot.getElementById("clearSchemas");
-    const exportTagMapBtn = this.shadowRoot.getElementById("exportTagMap");
 
     importSchemaBtn.addEventListener("click", () => {
       schemaFileInput.click();
     });
 
-    importErlangBtn.addEventListener("click", () => {
-      erlangFileInput.click();
+    loadAsn1DbBtn.addEventListener("click", () => {
+      this.loadAsn1Database();
     });
 
     schemaFileInput.addEventListener("change", (e) => {
@@ -727,22 +723,6 @@ class ASN1ControlPanel extends HTMLElement {
         composed: true
       }));
       this.updateSchemaList([]);
-    });
-
-    erlangFileInput.addEventListener("change", (e) => {
-      const files = Array.from(e.target.files);
-      if (files.length > 0) {
-        this.importErlangProfiles(files);
-      }
-      // Reset file input
-      erlangFileInput.value = '';
-    });
-
-    exportTagMapBtn.addEventListener("click", () => {
-      this.dispatchEvent(new CustomEvent("exportTagMap", {
-        bubbles: true,
-        composed: true
-      }));
     });
 
     // Schema viewer modal
@@ -973,74 +953,118 @@ class ASN1ControlPanel extends HTMLElement {
     reader.readAsText(file);
   }
 
-  importErlangProfiles(files) {
-    if (typeof window.ErlangASN1Analyzer === 'undefined') {
-      this.showStatus("Erlang ASN.1 analyzer not loaded", "error");
+  loadAsn1Database() {
+    if (!window.asn1DB) {
+      this.showStatus("ASN.1 database not loaded. Please refresh the page.", "error");
       return;
     }
 
-    const filePromises = files.map(file => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
+    console.log("📚 Loading ASN.1 definitions from database...");
 
-        reader.onload = (event) => {
-          resolve({
-            name: file.name,  // Keep extension so analyzer can detect .erl vs .hrl
-            content: event.target.result
-          });
-        };
+    try {
+      // Get all definition names from the database
+      const allNames = window.asn1DB.getAllNames();
+      console.log(`Found ${allNames.length} definitions in database`);
 
-        reader.onerror = () => {
-          reject(new Error(`Failed to read ${file.name}`));
-        };
+      // Convert database definitions to schema format
+      const schemas = [];
 
-        reader.readAsText(file);
-      });
-    });
+      allNames.forEach(name => {
+        const def = window.asn1DB.getByName(name);
+        if (def && def.kind === 'typedef' && def.type === 'SEQUENCE') {
+          // Convert to our schema format
+          const schema = {
+            name: def.name,
+            version: "1.0",
+            description: `From asn1-to-js database (line ${def.line || 'unknown'})`,
+            root: {
+              type: def.type,
+              fields: this.convertDbFieldsToSchema(def.fields || [])
+            },
+            allTypes: [{
+              name: def.name,
+              type: def.type,
+              fields: this.convertDbFieldsToSchema(def.fields || [])
+            }]
+          };
 
-    Promise.all(filePromises)
-      .then(fileContents => {
-        try {
-          console.log(`📁 Processing ${fileContents.length} file(s):`, fileContents.map(f => f.name));
-
-          // Analyze all profiles
-          const schemas = window.ErlangASN1Analyzer.analyzeProfiles(fileContents);
-
-          console.log(`✅ Analysis complete: ${schemas.length} schema(s) generated`);
-
-          if (schemas.length === 0) {
-            this.showStatus("No valid profiles found in files", "error");
-            return;
-          }
-
-          // Import each schema
-          let successCount = 0;
-          schemas.forEach(schema => {
-            console.log(`📤 Dispatching schema: ${schema.name} with ${schema.allTypes.length} types`);
-            this.dispatchEvent(new CustomEvent("schemaImport", {
-              detail: { schema: schema },
-              bubbles: true,
-              composed: true
-            }));
-            successCount++;
-          });
-
-          this.showStatus(`Imported ${successCount} Erlang profile(s) successfully!`, "success");
-
-          // Generate and store tag map
-          const tagMap = window.ErlangASN1Analyzer.generateTagMap(schemas);
-          this.currentTagMap = tagMap;
-
-          console.log("Generated Tag Map:", tagMap);
-        } catch (error) {
-          console.error("Error analyzing Erlang profiles:", error);
-          this.showStatus("Error analyzing profiles: " + error.message, "error");
+          schemas.push(schema);
         }
-      })
-      .catch(error => {
-        console.error("Error reading Erlang files:", error);
-        this.showStatus("Error reading files: " + error.message, "error");
       });
+
+      if (schemas.length === 0) {
+        this.showStatus("No SEQUENCE types found in database", "error");
+        return;
+      }
+
+      // Import each schema
+      let successCount = 0;
+      schemas.forEach(schema => {
+        console.log(`📤 Importing schema: ${schema.name}`);
+        this.dispatchEvent(new CustomEvent("schemaImport", {
+          detail: { schema: schema },
+          bubbles: true,
+          composed: true
+        }));
+        successCount++;
+      });
+
+      this.showStatus(`Loaded ${successCount} type definition(s) from ASN.1 database!`, "success");
+      console.log(`✅ Successfully imported ${successCount} schemas from database`);
+
+    } catch (error) {
+      console.error("Error loading ASN.1 database:", error);
+      this.showStatus("Error loading database: " + error.message, "error");
+    }
+  }
+
+  convertDbFieldsToSchema(dbFields) {
+    return dbFields.map((field, index) => {
+      const schemaField = {
+        name: field.name || `field${index}`,
+        type: field.type || 'OCTET STRING',
+        optional: field.optional || false
+      };
+
+      // Add tag if available
+      if (field.tags && field.tags.length > 0) {
+        const tag = field.tags[0];
+        schemaField.tag = {
+          class: this.tagClassToNumber(tag.class),
+          number: tag.number
+        };
+      } else {
+        // Default context-specific tag by position
+        schemaField.tag = {
+          class: 2,
+          number: index
+        };
+      }
+
+      // Add constraints if available
+      if (field.validators && field.validators.length > 0) {
+        schemaField.constraints = {};
+        field.validators.forEach(validator => {
+          if (validator.type === 'size') {
+            schemaField.constraints.size = { min: validator.min, max: validator.max };
+          } else if (validator.type === 'range') {
+            schemaField.constraints.range = { min: validator.min, max: validator.max };
+          }
+        });
+      }
+
+      return schemaField;
+    });
+  }
+
+  tagClassToNumber(className) {
+    const map = {
+      'UNIVERSAL': 0,
+      'APPLICATION': 1,
+      'CONTEXT': 2,
+      'PRIVATE': 3
+    };
+    return map[className] || 2;
   }
 
   showSchemaViewer(schema) {
