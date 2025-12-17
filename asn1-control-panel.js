@@ -525,6 +525,21 @@ class ASN1ControlPanel extends HTMLElement {
         </div>
       </div>
 
+      <!-- Main Content -->
+      <div class="drawer-tab">
+        <div class="tab-content active">
+          <div class="section">
+            <div class="section-title">Element Explorer</div>
+            <input type="text" id="elementSearch" placeholder="Search elements by name..." style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 12px; font-size: 12px; display: none;">
+            <div id="elementTree" style="font-size: 12px;">
+              <div class="empty-state" style="padding: 20px; text-align: center; color: #999;">
+                Load schemas to explore elements
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Schema Viewer Modal -->
       <div id="schemaViewerOverlay" class="modal-overlay" style="display: none;"></div>
       <div id="schemaViewerModal" class="schema-modal" style="display: none;">
@@ -698,6 +713,17 @@ class ASN1ControlPanel extends HTMLElement {
       this.updateSchemaList([]);
     });
 
+    // Element explorer search
+    const elementSearch = this.shadowRoot.getElementById("elementSearch");
+    if (elementSearch) {
+      elementSearch.addEventListener("input", (e) => {
+        const filter = e.target.value;
+        if (this.allElements) {
+          this.renderElementTree(this.allElements, filter);
+        }
+      });
+    }
+
     // Schema viewer modal
     const closeSchemaViewer = this.shadowRoot.getElementById("closeSchemaViewer");
     const schemaViewerOverlay = this.shadowRoot.getElementById("schemaViewerOverlay");
@@ -780,7 +806,6 @@ class ASN1ControlPanel extends HTMLElement {
   updateSchemaList(schemas) {
     const schemaList = this.shadowRoot.getElementById("schemaList");
     const schemaControls = this.shadowRoot.getElementById("schemaControls");
-    const schemaSelector = this.shadowRoot.getElementById("schemaSelector");
 
     // Store schemas for later use
     this.loadedSchemas = schemas || [];
@@ -788,11 +813,15 @@ class ASN1ControlPanel extends HTMLElement {
     if (!schemas || schemas.length === 0) {
       schemaList.innerHTML = '<div class="empty-state" style="padding: 20px; font-size: 12px;">No schemas loaded</div>';
       schemaControls.style.display = 'none';
+      this.updateElementExplorer([]);
       return;
     }
 
     // Show controls
     schemaControls.style.display = 'block';
+
+    // Update element explorer
+    this.updateElementExplorer(schemas);
 
     // Build schema list display
     let html = '';
@@ -821,6 +850,121 @@ class ASN1ControlPanel extends HTMLElement {
         this.showSchemaViewer(schemas[index]);
       });
     });
+  }
+
+  updateElementExplorer(schemas) {
+    const elementTree = this.shadowRoot.getElementById("elementTree");
+    const elementSearch = this.shadowRoot.getElementById("elementSearch");
+
+    if (!schemas || schemas.length === 0) {
+      elementTree.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #999;">Load schemas to explore elements</div>';
+      elementSearch.style.display = 'none';
+      return;
+    }
+
+    // Show search input
+    elementSearch.style.display = 'block';
+
+    // Build element tree from all schemas
+    this.allElements = [];
+    schemas.forEach(schema => {
+      const schemaRoot = schema.root || schema;
+      this.allElements.push({
+        name: schema.name,
+        type: schemaRoot.type || 'SEQUENCE',
+        fields: schemaRoot.fields || [],
+        schemaName: schema.name,
+        isRoot: true
+      });
+    });
+
+    this.renderElementTree(this.allElements);
+  }
+
+  renderElementTree(elements, filter = '') {
+    const elementTree = this.shadowRoot.getElementById("elementTree");
+
+    if (!elements || elements.length === 0) {
+      elementTree.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #999;">No elements found</div>';
+      return;
+    }
+
+    let html = '';
+    elements.forEach((element, index) => {
+      const matchesFilter = !filter || element.name.toLowerCase().includes(filter.toLowerCase());
+      if (!matchesFilter && !element.isRoot) return;
+
+      const hasChildren = element.fields && element.fields.length > 0;
+      const elementId = `element-${index}-${element.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+      html += `
+        <div class="element-item" style="margin-bottom: 4px;">
+          <div class="element-header" data-element-id="${elementId}" style="padding: 6px 8px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 6px; background: ${element.isRoot ? '#f0f7ff' : 'transparent'}; hover:background: #f5f5f5;">
+            ${hasChildren ? `<span class="element-toggle" data-target="${elementId}-children" style="width: 16px; text-align: center; user-select: none;">▶</span>` : `<span style="width: 16px;"></span>`}
+            <span style="font-weight: ${element.isRoot ? '600' : '500'}; color: ${element.isRoot ? '#667eea' : '#333'}; flex: 1;">${element.name}</span>
+            <span style="font-size: 10px; color: #999; text-transform: uppercase;">${element.type}</span>
+          </div>
+          ${hasChildren ? `<div id="${elementId}-children" class="element-children" style="display: none; margin-left: 20px; border-left: 1px solid #e0e0e0; padding-left: 8px;">
+            ${this.renderElementFields(element.fields, elementId)}
+          </div>` : ''}
+        </div>
+      `;
+    });
+
+    elementTree.innerHTML = html;
+
+    // Add click handlers for expand/collapse
+    const toggles = this.shadowRoot.querySelectorAll('.element-toggle');
+    toggles.forEach(toggle => {
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const targetId = toggle.dataset.target;
+        const children = this.shadowRoot.getElementById(targetId);
+        if (children) {
+          const isExpanded = children.style.display !== 'none';
+          children.style.display = isExpanded ? 'none' : 'block';
+          toggle.textContent = isExpanded ? '▶' : '▼';
+        }
+      });
+    });
+
+    // Add click handlers for elements (to navigate to them in graph)
+    const headers = this.shadowRoot.querySelectorAll('.element-header');
+    headers.forEach(header => {
+      header.addEventListener('click', (e) => {
+        if (e.target.classList.contains('element-toggle')) return;
+        const elementName = header.querySelector('span:nth-child(2)').textContent;
+        console.log('Navigate to element:', elementName);
+        // TODO: Implement navigation to node in graph
+      });
+    });
+  }
+
+  renderElementFields(fields, parentId) {
+    if (!fields || fields.length === 0) return '';
+
+    let html = '';
+    fields.forEach((field, index) => {
+      const fieldId = `${parentId}-field-${index}`;
+      const hasChildren = field.fields && field.fields.length > 0;
+      const tagInfo = field.tag ? `[${field.tag.class === 2 ? field.tag.number : `${field.tag.class}:${field.tag.number}`}]` : '';
+
+      html += `
+        <div class="element-item" style="margin-bottom: 2px;">
+          <div class="element-header" data-element-id="${fieldId}" style="padding: 4px 6px; cursor: pointer; border-radius: 3px; display: flex; align-items: center; gap: 6px;">
+            ${hasChildren ? `<span class="element-toggle" data-target="${fieldId}-children" style="width: 16px; text-align: center; user-select: none;">▶</span>` : `<span style="width: 16px;"></span>`}
+            <span style="font-weight: 400; color: #333; flex: 1;">${field.name}</span>
+            <span style="font-size: 10px; color: #999;">${field.type || 'ANY'}</span>
+            <span style="font-size: 9px; color: #999;">${tagInfo}</span>
+          </div>
+          ${hasChildren ? `<div id="${fieldId}-children" class="element-children" style="display: none; margin-left: 20px; border-left: 1px solid #e0e0e0; padding-left: 8px;">
+            ${this.renderElementFields(field.fields, fieldId)}
+          </div>` : ''}
+        </div>
+      `;
+    });
+
+    return html;
   }
 
   showStatus(message, type = "success") {

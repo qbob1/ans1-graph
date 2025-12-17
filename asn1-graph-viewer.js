@@ -464,6 +464,12 @@ class ASN1GraphViewer extends HTMLElement {
       composed: true
     }));
 
+    // Re-render graph if data is already loaded
+    if (this.data) {
+      console.log("🔄 Re-rendering graph with new schema:", schema.name);
+      this.renderJson(this.data);
+    }
+
     return true;
   }
 
@@ -806,27 +812,27 @@ class ASN1GraphViewer extends HTMLElement {
       let tagInfo = "";
 
       if (fieldLabel) {
-        // Field name is primary - don't show type
+        // Field name is primary - don't show tag numbers when we have a semantic name
         nodeName = fieldLabel;
       } else {
-        // No field name, use type as primary
+        // No field name, use type as primary and show tag info
         nodeName = baseType;
-      }
 
-      // Add tag number info for non-universal tags
-      if (obj.tagClass !== undefined && obj.tagNumber !== undefined) {
-        const tagClass = obj.tagClass;
-        const tagNumber = obj.tagNumber;
+        // Add tag number info for non-universal tags (only when no field label)
+        if (obj.tagClass !== undefined && obj.tagNumber !== undefined) {
+          const tagClass = obj.tagClass;
+          const tagNumber = obj.tagNumber;
 
-        if (tagClass === 1) {
-          // Application
-          tagInfo = ` [APPLICATION ${tagNumber}]`;
-        } else if (tagClass === 2) {
-          // Context-specific
-          tagInfo = ` [${tagNumber}]`;
-        } else if (tagClass === 3) {
-          // Private
-          tagInfo = ` [PRIVATE ${tagNumber}]`;
+          if (tagClass === 1) {
+            // Application
+            tagInfo = ` [APPLICATION ${tagNumber}]`;
+          } else if (tagClass === 2) {
+            // Context-specific
+            tagInfo = ` [${tagNumber}]`;
+          } else if (tagClass === 3) {
+            // Private
+            tagInfo = ` [PRIVATE ${tagNumber}]`;
+          }
         }
       }
 
