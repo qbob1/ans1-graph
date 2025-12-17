@@ -522,12 +522,7 @@ class ASN1ControlPanel extends HTMLElement {
               <button class="btn-secondary" id="clearSchemas">✕ Clear All Schemas</button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Main Content -->
-      <div class="drawer-tab">
-        <div class="tab-content active">
           <div class="section">
             <div class="section-title">Element Explorer</div>
             <input type="text" id="elementSearch" placeholder="Search elements by name..." style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 12px; font-size: 12px; display: none;">
@@ -934,8 +929,18 @@ class ASN1ControlPanel extends HTMLElement {
       header.addEventListener('click', (e) => {
         if (e.target.classList.contains('element-toggle')) return;
         const elementName = header.querySelector('span:nth-child(2)').textContent;
-        console.log('Navigate to element:', elementName);
-        // TODO: Implement navigation to node in graph
+
+        // Dispatch event to navigate to this element in the graph
+        this.dispatchEvent(new CustomEvent('navigateToElement', {
+          detail: { elementName: elementName },
+          bubbles: true,
+          composed: true
+        }));
+
+        // Visual feedback
+        this.shadowRoot.querySelectorAll('.element-header').forEach(h => {
+          h.style.background = h === header ? '#e3f2fd' : '';
+        });
       });
     });
   }

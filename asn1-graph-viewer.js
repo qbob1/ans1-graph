@@ -676,6 +676,97 @@ class ASN1GraphViewer extends HTMLElement {
   }
 
   /**
+   * Find nodes by name (can be multiple matches)
+   * @param {string} name - Name to search for
+   * @returns {Array} Array of matching nodes
+   */
+  findNodesByName(name) {
+    if (!this.root) return [];
+
+    const foundNodes = [];
+    this.root.each((node) => {
+      // Extract just the field name from the full node name (remove tag info)
+      const nodeName = node.data.name.split(' ')[0]; // Gets "iccid" from "iccid [0]"
+      if (nodeName === name) {
+        foundNodes.push(node);
+      }
+    });
+    return foundNodes;
+  }
+
+  /**
+   * Navigate to and highlight a node by name
+   * @param {string} elementName - Name of element to navigate to
+   */
+  navigateToNode(elementName) {
+    const nodes = this.findNodesByName(elementName);
+
+    if (nodes.length === 0) {
+      console.log(`No nodes found with name: ${elementName}`);
+      return false;
+    }
+
+    // If multiple matches, highlight all but focus on the first
+    const targetNode = nodes[0];
+
+    // Center the view on the target node
+    if (this.svg && this.g) {
+      const transform = d3.zoomIdentity
+        .translate(this.getAttribute('width') / 2, this.getAttribute('height') / 2)
+        .scale(1)
+        .translate(-targetNode.y, -targetNode.x);
+
+      this.svg.transition()
+        .duration(750)
+        .call(this.zoom.transform, transform);
+    }
+
+    // Highlight the nodes
+    this.highlightNodes(nodes);
+
+    console.log(`Navigated to ${nodes.length} node(s) with name: ${elementName}`);
+    return true;
+  }
+
+  /**
+   * Highlight specific nodes
+   * @param {Array} nodes - Array of nodes to highlight
+   */
+  highlightNodes(nodes) {
+    if (!this.g) return;
+
+    // Remove previous highlights
+    this.g.selectAll('rect.node-highlight').remove();
+
+    // Add highlight to each node
+    nodes.forEach(nodeData => {
+      const nodeGroup = this.g.selectAll('g.node')
+        .filter(d => d === nodeData);
+
+      // Add a pulsing highlight rectangle
+      nodeGroup.select('rect')
+        .classed('highlighted', true)
+        .transition()
+        .duration(300)
+        .attr('stroke', '#667eea')
+        .attr('stroke-width', 3)
+        .transition()
+        .duration(300)
+        .attr('stroke', '#ddd')
+        .attr('stroke-width', 2);
+
+      // Flash effect
+      nodeGroup.select('rect')
+        .transition()
+        .duration(150)
+        .attr('fill', '#e3f2fd')
+        .transition()
+        .duration(150)
+        .attr('fill', nodeData.data.isArray ? '#f0f0f0' : 'white');
+    });
+  }
+
+  /**
    * Get tag class name from numeric value
    * @param {number} tagClass - Numeric tag class (0=UNIVERSAL, 1=APPLICATION, 2=CONTEXT, 3=PRIVATE)
    * @returns {string} Tag class name

@@ -464,6 +464,12 @@
         graphViewer.clearSchemas();
       });
 
+      controlPanel.addEventListener("navigateToElement", (event) => {
+        const elementName = event.detail.elementName;
+        console.log("Navigate to element:", elementName);
+        graphViewer.navigateToNode(elementName);
+      });
+
       graphViewer.addEventListener("schemaImported", (event) => {
         console.log("Schema imported:", event.detail.schema.name);
       });
