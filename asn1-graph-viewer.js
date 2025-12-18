@@ -971,24 +971,42 @@ class ASN1GraphViewer extends HTMLElement {
       // Determine schema to pass to children
       let childSchema = null;
       if (schemaField) {
+        console.log(`🔧 Resolving child schema for field: ${fieldLabel}, type: ${schemaField.type}`);
+
         if (schemaField.fields || schemaField.alternatives) {
           // Use the matched schema field as context for children
           childSchema = schemaField;
+          console.log(`  ✓ Using inline schema (has ${schemaField.fields?.length || 0} fields, ${schemaField.alternatives?.length || 0} alternatives)`);
         } else if (schemaField.type) {
           // CHOICE alternative may reference another type - look it up
+          console.log(`  🔍 Looking up referenced type: "${schemaField.type}" in ${this.schemas.length} loaded schemas`);
           const referencedSchema = this.schemas.find(s => s.name === schemaField.type);
           if (referencedSchema) {
             childSchema = referencedSchema.root || referencedSchema;
-          } else if (window.asn1DB) {
-            // Try to get from database
-            const dbDef = window.asn1DB.getByName(schemaField.type);
-            if (dbDef) {
-              // Create temporary schema from database definition
-              childSchema = {
-                type: dbDef.type,
-                fields: dbDef.fields,
-                alternatives: dbDef.alternatives
-              };
+            console.log(`  ✓ Found schema: ${referencedSchema.name}, type: ${childSchema.type}`);
+          } else {
+            console.log(`  ✗ Schema "${schemaField.type}" not found in loaded schemas`);
+            console.log(`  📋 Available schemas:`, this.schemas.map(s => s.name).join(', '));
+
+            if (window.asn1DB) {
+              // Try to get from database
+              console.log(`  🔍 Trying database lookup for "${schemaField.type}"`);
+              const dbDef = window.asn1DB.getByName(schemaField.type);
+              if (dbDef) {
+                console.log(`  ⚠️  Found in database but NOT in loaded schemas - schema may not have been imported!`);
+                console.log(`  ⚠️  Database entry:`, dbDef);
+                // asn1DB.getByName() returns structured format with type, fields, alternatives
+                // But fields are in DB format, not our converted schema format
+                // For now, create a basic schema - fields won't have proper tag conversion
+                childSchema = {
+                  type: dbDef.type,
+                  fields: dbDef.fields || [],
+                  alternatives: dbDef.alternatives || []
+                };
+                console.log(`  ⚠️  Using raw database schema (may have formatting issues)`);
+              } else {
+                console.log(`  ✗ Not found in database either`);
+              }
             }
           }
         }
@@ -997,6 +1015,11 @@ class ASN1GraphViewer extends HTMLElement {
       // If no child schema found, continue with parent schema
       if (!childSchema && parentSchema && (parentSchema.fields || parentSchema.alternatives)) {
         childSchema = parentSchema;
+        console.log(`⚠️  No child schema, continuing with parent schema: ${parentSchema.type || 'unknown'}`);
+      } else if (childSchema) {
+        console.log(`✅ Child schema set: type=${childSchema.type}, has ${childSchema.fields?.length || 0} fields, ${childSchema.alternatives?.length || 0} alternatives`);
+      } else {
+        console.log(`⚠️  No child schema available - children will search globally`);
       }
 
       // Separate properties and children
