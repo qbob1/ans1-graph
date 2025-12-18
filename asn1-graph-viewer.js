@@ -855,22 +855,49 @@ class ASN1GraphViewer extends HTMLElement {
         }
         // Only search all schemas if we have NO parent schema context
         else if (!fieldLabel && this.schemas && this.schemas.length > 0) {
-          for (const schema of this.schemas) {
-            const schemaRoot = schema.root || schema;
-            // Search in fields (SEQUENCE/SET) or alternatives (CHOICE)
-            const fieldsToSearch = schemaRoot.fields || schemaRoot.alternatives || [];
-            if (fieldsToSearch.length > 0) {
-              const matchedField = fieldsToSearch.find(field =>
-                field.tag &&
-                field.tag.class === tagClass &&
-                field.tag.number === tagNumber
-              );
+          // For context-specific tags, prioritize CHOICE schemas over SEQUENCE
+          // because CHOICE is transparent in encoding - the tag we see IS the choice selector
+          if (tagClass === 2) { // CONTEXT-SPECIFIC
+            // First pass: search CHOICE schemas only
+            for (const schema of this.schemas) {
+              const schemaRoot = schema.root || schema;
+              if (schemaRoot.type === 'CHOICE' && schemaRoot.alternatives && schemaRoot.alternatives.length > 0) {
+                const matchedField = schemaRoot.alternatives.find(field =>
+                  field.tag &&
+                  field.tag.class === tagClass &&
+                  field.tag.number === tagNumber
+                );
 
-              if (matchedField) {
-                schemaField = matchedField;
-                fieldLabel = matchedField.name;
-                fieldInfo = matchedField;
-                break; // Found a match, stop searching
+                if (matchedField) {
+                  schemaField = matchedField;
+                  fieldLabel = matchedField.name;
+                  fieldInfo = matchedField;
+                  console.log(`🎯 Matched [${tagNumber}] to CHOICE ${schema.name} alternative: ${matchedField.name}`);
+                  break; // Found a match in CHOICE, stop searching
+                }
+              }
+            }
+          }
+
+          // Second pass: if no CHOICE match found, search all schemas (SEQUENCE/SET/CHOICE)
+          if (!fieldLabel) {
+            for (const schema of this.schemas) {
+              const schemaRoot = schema.root || schema;
+              const fieldsToSearch = schemaRoot.fields || schemaRoot.alternatives || [];
+              if (fieldsToSearch.length > 0) {
+                const matchedField = fieldsToSearch.find(field =>
+                  field.tag &&
+                  field.tag.class === tagClass &&
+                  field.tag.number === tagNumber
+                );
+
+                if (matchedField) {
+                  schemaField = matchedField;
+                  fieldLabel = matchedField.name;
+                  fieldInfo = matchedField;
+                  console.log(`📌 Matched [${tagClass}:${tagNumber}] to ${schemaRoot.type} ${schema.name}: ${matchedField.name}`);
+                  break; // Found a match, stop searching
+                }
               }
             }
           }
@@ -1029,6 +1056,26 @@ class ASN1GraphViewer extends HTMLElement {
         if (schema.name === obj.name) {
           console.log('  ✓ Matched by name:', schema.name);
           return schema.root || schema;
+        }
+      }
+    }
+
+    // For context-specific tags, check if any CHOICE schema has this tag as an alternative
+    // CHOICE is transparent in encoding - if we see [0], this might BE a CHOICE that selected alternative [0]
+    if (obj.tagClass === 2 && obj.tagNumber !== undefined) {
+      for (const schema of this.schemas) {
+        const schemaRoot = schema.root || schema;
+        if (schemaRoot.type === 'CHOICE' && schemaRoot.alternatives) {
+          const matchingAlternative = schemaRoot.alternatives.find(alt =>
+            alt.tag &&
+            alt.tag.class === obj.tagClass &&
+            alt.tag.number === obj.tagNumber
+          );
+
+          if (matchingAlternative) {
+            console.log(`  ✓ Matched [${obj.tagNumber}] to CHOICE schema: ${schema.name} (alternative: ${matchingAlternative.name})`);
+            return schemaRoot;
+          }
         }
       }
     }
