@@ -1753,6 +1753,27 @@ class ASN1ControlPanel extends HTMLElement {
   }
 
   getBaseUniversalType(node) {
+    // For explicit tagging: if this node has exactly 1 sub-element and it's UNIVERSAL class,
+    // return that as the base type (e.g., [0] wrapping SEQUENCE)
+    if (node.sub && node.sub.length === 1 && node.sub[0].tag) {
+      const subNode = node.sub[0];
+      if (subNode.tag.tagClass === 0) {
+        // This is a UNIVERSAL tag - return its type name
+        const universalTags = {
+          1: "BOOLEAN", 2: "INTEGER", 3: "BIT STRING", 4: "OCTET STRING",
+          5: "NULL", 6: "OBJECT IDENTIFIER", 7: "ObjectDescriptor",
+          8: "EXTERNAL", 9: "REAL", 10: "ENUMERATED", 11: "EMBEDDED PDV",
+          12: "UTF8String", 13: "RELATIVE-OID", 16: "SEQUENCE", 17: "SET",
+          18: "NumericString", 19: "PrintableString", 20: "T61String",
+          21: "VideotexString", 22: "IA5String", 23: "UTCTime",
+          24: "GeneralizedTime", 25: "GraphicString", 26: "VisibleString",
+          27: "GeneralString", 28: "UniversalString", 30: "BMPString",
+        };
+        return universalTags[subNode.tag.tagNumber] || `Universal_${subNode.tag.tagNumber}`;
+      }
+    }
+
+    // Fallback heuristics for primitive types
     if (!node.sub && node.content) {
       const content = typeof node.content === "function" ? node.content() : node.content;
 
@@ -1769,7 +1790,8 @@ class ASN1ControlPanel extends HTMLElement {
       }
     }
 
-    if (node.sub && node.sub.length > 0) {
+    // If has multiple sub-elements, likely a SEQUENCE or SET (but could be implicit)
+    if (node.sub && node.sub.length > 1) {
       return "SEQUENCE/SET";
     }
 

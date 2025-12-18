@@ -930,6 +930,11 @@ class ASN1GraphViewer extends HTMLElement {
         }
       }
 
+      // If there's a base type (e.g., SEQUENCE under a context tag), show it
+      if (obj.baseType && obj.baseType !== baseType && !fieldLabel) {
+        nodeName = `${nodeName} (${obj.baseType})`;
+      }
+
       node.name = nodeName + tagInfo;
 
       // Determine schema to pass to children
@@ -1301,6 +1306,7 @@ class ASN1GraphViewer extends HTMLElement {
       const className = classNames[nodeData.data.rawData.tagClass] || nodeData.data.rawData.tagClass;
       const tagNumber = nodeData.data.rawData.tagNumber;
       const tagConstructed = nodeData.data.rawData.tagConstructed;
+      const baseType = nodeData.data.rawData.baseType;
 
       html += `
         <div class="field-group">
@@ -1309,8 +1315,9 @@ class ASN1GraphViewer extends HTMLElement {
             <div style="margin-bottom: 4px;"><strong>Class:</strong> ${className} (${nodeData.data.rawData.tagClass})</div>
             <div style="margin-bottom: 4px;"><strong>Number:</strong> ${tagNumber !== undefined ? tagNumber : 'N/A'}</div>
             <div style="margin-bottom: 4px;"><strong>Form:</strong> ${tagConstructed ? 'Constructed' : 'Primitive'}</div>
+            ${baseType ? `<div style="margin-bottom: 4px;"><strong>Base Type:</strong> ${baseType}</div>` : ''}
             <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 11px; color: #666;">
-              Raw: [${className.toUpperCase()} ${tagNumber}] ${tagConstructed ? 'CONSTRUCTED' : 'PRIMITIVE'}
+              Raw: [${className.toUpperCase()} ${tagNumber}] ${tagConstructed ? 'CONSTRUCTED' : 'PRIMITIVE'}${baseType ? ` → ${baseType}` : ''}
             </div>
           </div>
         </div>
