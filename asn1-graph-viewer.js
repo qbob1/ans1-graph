@@ -782,6 +782,22 @@ class ASN1GraphViewer extends HTMLElement {
   }
 
   /**
+   * Convert tag class name to numeric value
+   * @param {string} className - Tag class name (UNIVERSAL, APPLICATION, CONTEXT, PRIVATE)
+   * @returns {number} Numeric tag class
+   */
+  tagClassToNumber(className) {
+    const map = {
+      'UNIVERSAL': 0,
+      'APPLICATION': 1,
+      'CONTEXT': 2,
+      'CONTEXT-SPECIFIC': 2,
+      'PRIVATE': 3
+    };
+    return map[className] !== undefined ? map[className] : 2; // Default to CONTEXT
+  }
+
+  /**
    * Convert JSON to hierarchical structure
    * @param {Object} obj - ASN.1 data object
    * @param {string} name - Node name
@@ -1003,17 +1019,71 @@ class ASN1GraphViewer extends HTMLElement {
               console.log(`  🔍 Trying database lookup for "${schemaField.type}"`);
               const dbDef = window.asn1DB.getByName(schemaField.type);
               if (dbDef) {
-                console.log(`  ⚠️  Found in database but NOT in loaded schemas - schema may not have been imported!`);
+                console.log(`  ⚠️  Found in database but NOT in loaded schemas - converting fields on-the-fly...`);
                 console.log(`  ⚠️  Database entry:`, dbDef);
+
                 // asn1DB.getByName() returns structured format with type, fields, alternatives
-                // But fields are in DB format, not our converted schema format
-                // For now, create a basic schema - fields won't have proper tag conversion
+                // But fields are in DB format: {name, type, tags: [{class: "CONTEXT", number: 0}]}
+                // We need our format: {name, type, tag: {class: 2, number: 0}}
+
+                const convertedFields = (dbDef.fields || []).map((field, index) => {
+                  const converted = {
+                    name: field.name || `field${index}`,
+                    type: field.type || 'OCTET STRING',
+                    optional: field.optional || false
+                  };
+
+                  // Convert tag format from database to our format
+                  if (field.tags && field.tags.length > 0) {
+                    const tag = field.tags[0];
+                    converted.tag = {
+                      class: this.tagClassToNumber(tag.class),
+                      number: tag.number
+                    };
+                  } else {
+                    // Default context-specific tag by position
+                    converted.tag = {
+                      class: 2,
+                      number: index
+                    };
+                  }
+
+                  return converted;
+                });
+
+                const convertedAlternatives = (dbDef.alternatives || []).map((alt, index) => {
+                  const converted = {
+                    name: alt.name || `alternative${index}`,
+                    type: alt.type || 'OCTET STRING',
+                    optional: false
+                  };
+
+                  // Convert tag format
+                  if (alt.tags && alt.tags.length > 0) {
+                    const tag = alt.tags[0];
+                    converted.tag = {
+                      class: this.tagClassToNumber(tag.class),
+                      number: tag.number
+                    };
+                  } else {
+                    converted.tag = {
+                      class: 2,
+                      number: index
+                    };
+                  }
+
+                  return converted;
+                });
+
                 childSchema = {
                   type: dbDef.type,
-                  fields: dbDef.fields || [],
-                  alternatives: dbDef.alternatives || []
+                  fields: convertedFields,
+                  alternatives: convertedAlternatives
                 };
-                console.log(`  ⚠️  Using raw database schema (may have formatting issues)`);
+                console.log(`  ✅ Converted database schema: ${convertedFields.length} fields, ${convertedAlternatives.length} alternatives`);
+                if (convertedFields.length > 0 && convertedFields.length <= 10) {
+                  console.log(`  📋 Converted fields:`, convertedFields.map(f => `${f.name}[${f.tag?.class}:${f.tag?.number}]`).join(', '));
+                }
               } else {
                 console.log(`  ✗ Not found in database either`);
               }
