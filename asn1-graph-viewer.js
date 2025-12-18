@@ -805,6 +805,19 @@ class ASN1GraphViewer extends HTMLElement {
    * @param {Object} parentSchema - Parent schema definition for field lookup
    */
   jsonToHierarchy(obj, name = "root", path = "root", parentSchema = null) {
+    // Log what parent schema we received
+    if (obj.tagClass !== undefined && obj.tagNumber !== undefined) {
+      console.log(`\n📥 jsonToHierarchy called for [${obj.tagClass}:${obj.tagNumber}] at path: ${path}`);
+      if (parentSchema) {
+        console.log(`  📦 Received parent schema: type=${parentSchema.type}, fields=${parentSchema.fields?.length || 0}, alternatives=${parentSchema.alternatives?.length || 0}`);
+        if (parentSchema.fields && parentSchema.fields.length <= 5) {
+          console.log(`  📦 Parent schema fields:`, parentSchema.fields.map(f => `${f.name}[${f.tag?.class}:${f.tag?.number}]`).join(', '));
+        }
+      } else {
+        console.log(`  ⚠️  NO parent schema received!`);
+      }
+    }
+
     const node = {
       name: name,
       path: path,
@@ -1106,6 +1119,8 @@ class ASN1GraphViewer extends HTMLElement {
       Object.entries(obj).forEach(([key, value]) => {
         // Special handling for ASN.1 'sub' array - these are children nodes
         if (key === "sub" && Array.isArray(value)) {
+          console.log(`\n📤 Processing ${value.length} children in 'sub' array at ${path}`);
+          console.log(`  📤 Passing childSchema to children: ${childSchema ? `type=${childSchema.type}, fields=${childSchema.fields?.length || 0}` : 'NULL'}`);
           value.forEach((child, index) => {
             node.children.push(
               this.jsonToHierarchy(child, `[${index}]`, `${path}.sub[${index}]`, childSchema)
