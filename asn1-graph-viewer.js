@@ -894,13 +894,14 @@ class ASN1GraphViewer extends HTMLElement {
         // Only search all schemas if we have NO parent schema context
         else if (!fieldLabel && this.schemas && this.schemas.length > 0) {
           console.log(`⚠️  No parent schema - searching globally for [${tagClass}:${tagNumber}]`);
-          // For context-specific tags, prioritize CHOICE schemas over SEQUENCE
-          // because CHOICE is transparent in encoding - the tag we see IS the choice selector
+          // For context-specific tags, prioritize UNTAGGED CHOICE schemas (global contexts)
+          // These schemas like ProfileElement have no root tag and define the global context
           if (tagClass === 2) { // CONTEXT-SPECIFIC
-            // First pass: search CHOICE schemas only
+            // First pass: search UNTAGGED CHOICE schemas only (global context)
+            console.log(`  🌍 Searching untagged CHOICE schemas...`);
             for (const schema of this.schemas) {
               const schemaRoot = schema.root || schema;
-              if (schemaRoot.type === 'CHOICE' && schemaRoot.alternatives && schemaRoot.alternatives.length > 0) {
+              if (schemaRoot.type === 'CHOICE' && !schemaRoot.tag && schemaRoot.alternatives && schemaRoot.alternatives.length > 0) {
                 const matchedField = schemaRoot.alternatives.find(field =>
                   field.tag &&
                   field.tag.class === tagClass &&
@@ -911,8 +912,31 @@ class ASN1GraphViewer extends HTMLElement {
                   schemaField = matchedField;
                   fieldLabel = matchedField.name;
                   fieldInfo = matchedField;
-                  console.log(`🎯 Matched [${tagNumber}] to CHOICE ${schema.name} alternative: ${matchedField.name}`);
-                  break; // Found a match in CHOICE, stop searching
+                  console.log(`🎯 Matched [${tagNumber}] to UNTAGGED CHOICE ${schema.name} alternative: ${matchedField.name}`);
+                  break; // Found a match in global CHOICE, stop searching
+                }
+              }
+            }
+
+            // Second pass: search tagged CHOICE schemas if no untagged match
+            if (!fieldLabel) {
+              console.log(`  🔍 Searching tagged CHOICE schemas...`);
+              for (const schema of this.schemas) {
+                const schemaRoot = schema.root || schema;
+                if (schemaRoot.type === 'CHOICE' && schemaRoot.tag && schemaRoot.alternatives && schemaRoot.alternatives.length > 0) {
+                  const matchedField = schemaRoot.alternatives.find(field =>
+                    field.tag &&
+                    field.tag.class === tagClass &&
+                    field.tag.number === tagNumber
+                  );
+
+                  if (matchedField) {
+                    schemaField = matchedField;
+                    fieldLabel = matchedField.name;
+                    fieldInfo = matchedField;
+                    console.log(`🎯 Matched [${tagNumber}] to tagged CHOICE ${schema.name} alternative: ${matchedField.name}`);
+                    break; // Found a match in tagged CHOICE, stop searching
+                  }
                 }
               }
             }
@@ -1178,12 +1202,14 @@ class ASN1GraphViewer extends HTMLElement {
       }
     }
 
-    // For context-specific tags, check if any CHOICE schema has this tag as an alternative
-    // CHOICE is transparent in encoding - if we see [0], this might BE a CHOICE that selected alternative [0]
+    // For context-specific tags, first check UNTAGGED CHOICE schemas (global contexts like ProfileElement)
+    // These schemas have no root tag and serve as the global context for context-specific tagging
     if (obj.tagClass === 2 && obj.tagNumber !== undefined) {
+      console.log('  🌍 Searching for untagged CHOICE schemas (global context)...');
       for (const schema of this.schemas) {
         const schemaRoot = schema.root || schema;
-        if (schemaRoot.type === 'CHOICE' && schemaRoot.alternatives) {
+        // Check if this is an untagged CHOICE schema
+        if (schemaRoot.type === 'CHOICE' && !schemaRoot.tag && schemaRoot.alternatives) {
           const matchingAlternative = schemaRoot.alternatives.find(alt =>
             alt.tag &&
             alt.tag.class === obj.tagClass &&
@@ -1191,7 +1217,25 @@ class ASN1GraphViewer extends HTMLElement {
           );
 
           if (matchingAlternative) {
-            console.log(`  ✓ Matched [${obj.tagNumber}] to CHOICE schema: ${schema.name} (alternative: ${matchingAlternative.name})`);
+            console.log(`  ✓ Matched [${obj.tagNumber}] to UNTAGGED CHOICE schema: ${schema.name} (alternative: ${matchingAlternative.name})`);
+            return schemaRoot;
+          }
+        }
+      }
+
+      // If no untagged CHOICE found, search tagged CHOICE schemas
+      console.log('  🔍 Searching tagged CHOICE schemas...');
+      for (const schema of this.schemas) {
+        const schemaRoot = schema.root || schema;
+        if (schemaRoot.type === 'CHOICE' && schemaRoot.tag && schemaRoot.alternatives) {
+          const matchingAlternative = schemaRoot.alternatives.find(alt =>
+            alt.tag &&
+            alt.tag.class === obj.tagClass &&
+            alt.tag.number === obj.tagNumber
+          );
+
+          if (matchingAlternative) {
+            console.log(`  ✓ Matched [${obj.tagNumber}] to tagged CHOICE schema: ${schema.name} (alternative: ${matchingAlternative.name})`);
             return schemaRoot;
           }
         }
