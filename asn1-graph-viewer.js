@@ -839,6 +839,12 @@ class ASN1GraphViewer extends HTMLElement {
           // Look for matching field by tag class and number
           // Search in fields (for SEQUENCE/SET) or alternatives (for CHOICE)
           const fieldsToSearch = parentSchema.fields || parentSchema.alternatives || [];
+          console.log(`🔍 Searching parent schema for [${tagClass}:${tagNumber}] in ${fieldsToSearch.length} fields/alternatives`);
+          console.log(`  Parent schema type: ${parentSchema.type || 'unknown'}`);
+          if (fieldsToSearch.length > 0 && fieldsToSearch.length <= 10) {
+            console.log(`  Available fields:`, fieldsToSearch.map(f => `${f.name}[${f.tag?.class}:${f.tag?.number}]`).join(', '));
+          }
+
           schemaField = fieldsToSearch.find(field =>
             field.tag &&
             field.tag.class === tagClass &&
@@ -849,12 +855,16 @@ class ASN1GraphViewer extends HTMLElement {
             fieldLabel = schemaField.name;
             // Use schema field info
             fieldInfo = schemaField;
+            console.log(`  ✅ MATCH in parent schema: ${fieldLabel}`);
+          } else {
+            console.log(`  ❌ NO MATCH in parent schema for [${tagClass}:${tagNumber}]`);
           }
           // If we have a parent schema but didn't find a match,
           // DON'T search other schemas - this is likely an undefined field in this schema's context
         }
         // Only search all schemas if we have NO parent schema context
         else if (!fieldLabel && this.schemas && this.schemas.length > 0) {
+          console.log(`⚠️  No parent schema - searching globally for [${tagClass}:${tagNumber}]`);
           // For context-specific tags, prioritize CHOICE schemas over SEQUENCE
           // because CHOICE is transparent in encoding - the tag we see IS the choice selector
           if (tagClass === 2) { // CONTEXT-SPECIFIC
