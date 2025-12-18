@@ -1295,14 +1295,24 @@ class ASN1GraphViewer extends HTMLElement {
       </div>
     `;
 
-    // Show class if available
+    // Show tag information if available
     if (nodeData.data.rawData && nodeData.data.rawData.tagClass !== undefined) {
       const classNames = ['Universal', 'Application', 'Context-specific', 'Private'];
       const className = classNames[nodeData.data.rawData.tagClass] || nodeData.data.rawData.tagClass;
+      const tagNumber = nodeData.data.rawData.tagNumber;
+      const tagConstructed = nodeData.data.rawData.tagConstructed;
+
       html += `
         <div class="field-group">
-          <div class="field-label">Class</div>
-          <div class="field-value">${className}</div>
+          <div class="field-label">Tag Information</div>
+          <div class="field-value" style="font-family: monospace; background: #f5f5f5; padding: 8px; border-radius: 4px;">
+            <div style="margin-bottom: 4px;"><strong>Class:</strong> ${className} (${nodeData.data.rawData.tagClass})</div>
+            <div style="margin-bottom: 4px;"><strong>Number:</strong> ${tagNumber !== undefined ? tagNumber : 'N/A'}</div>
+            <div style="margin-bottom: 4px;"><strong>Form:</strong> ${tagConstructed ? 'Constructed' : 'Primitive'}</div>
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 11px; color: #666;">
+              Raw: [${className.toUpperCase()} ${tagNumber}] ${tagConstructed ? 'CONSTRUCTED' : 'PRIMITIVE'}
+            </div>
+          </div>
         </div>
       `;
     }
