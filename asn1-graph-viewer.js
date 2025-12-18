@@ -835,9 +835,11 @@ class ASN1GraphViewer extends HTMLElement {
         const tagNumber = obj.tagNumber;
 
         // First, try to get field info from parent schema
-        if (parentSchema && parentSchema.fields && Array.isArray(parentSchema.fields)) {
+        if (parentSchema && (parentSchema.fields || parentSchema.alternatives)) {
           // Look for matching field by tag class and number
-          schemaField = parentSchema.fields.find(field =>
+          // Search in fields (for SEQUENCE/SET) or alternatives (for CHOICE)
+          const fieldsToSearch = parentSchema.fields || parentSchema.alternatives || [];
+          schemaField = fieldsToSearch.find(field =>
             field.tag &&
             field.tag.class === tagClass &&
             field.tag.number === tagNumber
@@ -855,8 +857,10 @@ class ASN1GraphViewer extends HTMLElement {
         else if (!fieldLabel && this.schemas && this.schemas.length > 0) {
           for (const schema of this.schemas) {
             const schemaRoot = schema.root || schema;
-            if (schemaRoot.fields && Array.isArray(schemaRoot.fields)) {
-              const matchedField = schemaRoot.fields.find(field =>
+            // Search in fields (SEQUENCE/SET) or alternatives (CHOICE)
+            const fieldsToSearch = schemaRoot.fields || schemaRoot.alternatives || [];
+            if (fieldsToSearch.length > 0) {
+              const matchedField = fieldsToSearch.find(field =>
                 field.tag &&
                 field.tag.class === tagClass &&
                 field.tag.number === tagNumber
@@ -939,11 +943,32 @@ class ASN1GraphViewer extends HTMLElement {
 
       // Determine schema to pass to children
       let childSchema = null;
-      if (schemaField && schemaField.fields) {
-        // Use the matched schema field as context for children
-        childSchema = schemaField;
-      } else if (parentSchema && parentSchema.fields) {
-        // Continue with parent schema if no field-specific schema
+      if (schemaField) {
+        if (schemaField.fields || schemaField.alternatives) {
+          // Use the matched schema field as context for children
+          childSchema = schemaField;
+        } else if (schemaField.type) {
+          // CHOICE alternative may reference another type - look it up
+          const referencedSchema = this.schemas.find(s => s.name === schemaField.type);
+          if (referencedSchema) {
+            childSchema = referencedSchema.root || referencedSchema;
+          } else if (window.asn1DB) {
+            // Try to get from database
+            const dbDef = window.asn1DB.getByName(schemaField.type);
+            if (dbDef) {
+              // Create temporary schema from database definition
+              childSchema = {
+                type: dbDef.type,
+                fields: dbDef.fields,
+                alternatives: dbDef.alternatives
+              };
+            }
+          }
+        }
+      }
+
+      // If no child schema found, continue with parent schema
+      if (!childSchema && parentSchema && (parentSchema.fields || parentSchema.alternatives)) {
         childSchema = parentSchema;
       }
 

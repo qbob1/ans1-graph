@@ -1092,12 +1092,18 @@ class ASN1ControlPanel extends HTMLElement {
 
       allNames.forEach(name => {
         const def = window.asn1DB.getByName(name);
-        if (def && def.kind === 'typedef' && def.type === 'SEQUENCE') {
+        if (def && def.kind === 'typedef' && (def.type === 'SEQUENCE' || def.type === 'CHOICE')) {
           // Convert to our schema format
           const schemaRoot = {
-            type: def.type,
-            fields: this.convertDbFieldsToSchema(def.fields || [])
+            type: def.type
           };
+
+          // Handle SEQUENCE fields or CHOICE alternatives
+          if (def.type === 'SEQUENCE') {
+            schemaRoot.fields = this.convertDbFieldsToSchema(def.fields || []);
+          } else if (def.type === 'CHOICE') {
+            schemaRoot.alternatives = this.convertDbAlternativesToSchema(def.alternatives || []);
+          }
 
           // Add root-level tag if available (e.g., APPLICATION tags on ProfileElement)
           if (def.tags && def.tags.length > 0) {
@@ -1112,12 +1118,13 @@ class ASN1ControlPanel extends HTMLElement {
           const schema = {
             name: def.name,
             version: "1.0",
-            description: `From asn1-to-js database (line ${def.line || 'unknown'})`,
+            description: `From asn1-to-js database (line ${def.line || 'unknown'}, type: ${def.type})`,
             root: schemaRoot,
             allTypes: [{
               name: def.name,
               type: def.type,
-              fields: this.convertDbFieldsToSchema(def.fields || [])
+              fields: def.type === 'SEQUENCE' ? this.convertDbFieldsToSchema(def.fields || []) : undefined,
+              alternatives: def.type === 'CHOICE' ? this.convertDbAlternativesToSchema(def.alternatives || []) : undefined
             }]
           };
 
@@ -1126,7 +1133,7 @@ class ASN1ControlPanel extends HTMLElement {
       });
 
       if (schemas.length === 0) {
-        this.showStatus("No SEQUENCE types found in database", "error");
+        this.showStatus("No SEQUENCE or CHOICE types found in database", "error");
         return;
       }
 
@@ -1187,6 +1194,33 @@ class ASN1ControlPanel extends HTMLElement {
       }
 
       return schemaField;
+    });
+  }
+
+  convertDbAlternativesToSchema(dbAlternatives) {
+    return dbAlternatives.map((alternative, index) => {
+      const schemaAlternative = {
+        name: alternative.name || `alternative${index}`,
+        type: alternative.type?.type_def?.type_name || alternative.type?.type_def?.type || 'OCTET STRING',
+        optional: false  // CHOICE alternatives are all valid choices, not optional
+      };
+
+      // Add tag if available (CHOICE alternatives typically have context-specific tags)
+      if (alternative.tags && alternative.tags.length > 0) {
+        const tag = alternative.tags[0];
+        schemaAlternative.tag = {
+          class: this.tagClassToNumber(tag.class),
+          number: tag.number
+        };
+      } else {
+        // Default context-specific tag by position
+        schemaAlternative.tag = {
+          class: 2,
+          number: index
+        };
+      }
+
+      return schemaAlternative;
     });
   }
 
