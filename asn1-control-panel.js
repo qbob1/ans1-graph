@@ -1783,6 +1783,17 @@ class ASN1ControlPanel extends HTMLElement {
     }
 
     return nodes.map((node, index) => {
+      // Get label from database if available
+      let label = null;
+      if (window.asn1DB && node.tagClass !== undefined && node.tagNumber !== undefined) {
+        const tagClassNames = {0: 'UNIVERSAL', 1: 'APPLICATION', 2: 'CONTEXT', 3: 'PRIVATE'};
+        const tagClassName = tagClassNames[node.tagClass] || 'UNKNOWN';
+        const defs = window.asn1DB.getByTag(tagClassName, node.tagNumber);
+        if (defs && defs.length > 0) {
+          label = defs[0].name;
+        }
+      }
+
       const tagInfo = {
         index: index,
         class: node.tagClass,
@@ -1790,6 +1801,7 @@ class ASN1ControlPanel extends HTMLElement {
         constructed: node.tagConstructed,
         type: node.type,
         baseType: node.baseType,
+        label: label,
         depth: depth,
         children: []
       };
@@ -1804,7 +1816,6 @@ class ASN1ControlPanel extends HTMLElement {
   }
 
   renderTagTreeNode(nodes, depth) {
-    const indent = '  '.repeat(depth);
     let html = '';
 
     nodes.forEach((node, idx) => {
@@ -1821,21 +1832,48 @@ class ASN1ControlPanel extends HTMLElement {
       };
       const color = colors[node.class] || '#999';
 
-      html += `<div style="margin: 2px 0; line-height: 1.6;">`;
-      html += `${indent}<span style="color: ${color}; font-weight: 600;">[${className} ${node.number}]</span> `;
-      html += `<span style="color: #666;">${form}</span>`;
+      const hasChildren = node.children && node.children.length > 0;
+      const nodeId = `tag-node-${depth}-${idx}`;
 
-      if (node.type && node.type !== 'SEQUENCE' && node.type !== 'SET') {
-        html += ` <span style="color: #999;">→ ${node.type}</span>`;
+      html += `<div style="margin: 2px 0;">`;
+
+      // Expandable header
+      html += `<div style="display: flex; align-items: center; padding: 2px 0; cursor: ${hasChildren ? 'pointer' : 'default'};"
+                    ${hasChildren ? `onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.toggle').textContent = this.nextElementSibling.style.display === 'none' ? '▶' : '▼';"` : ''}>`;
+
+      if (hasChildren) {
+        html += `<span class="toggle" style="display: inline-block; width: 16px; color: #999;">▼</span>`;
+      } else {
+        html += `<span style="display: inline-block; width: 16px;"></span>`;
+      }
+
+      html += `<span style="color: ${color}; font-weight: 600;">[${className} ${node.number}]</span> `;
+      html += `<span style="color: #666; margin-left: 4px;">${form}</span>`;
+
+      // Show label if available
+      if (node.label) {
+        html += ` <span style="color: #2c3e50; font-weight: 600; margin-left: 8px;">"${node.label}"</span>`;
+      }
+
+      if (node.type && node.type !== 'SEQUENCE' && node.type !== 'SET' && !node.label) {
+        html += ` <span style="color: #999; margin-left: 4px;">→ ${node.type}</span>`;
       }
 
       if (node.baseType) {
-        html += ` <span style="color: #9b59b6;">→ ${node.baseType}</span>`;
+        html += ` <span style="color: #9b59b6; margin-left: 4px;">→ ${node.baseType}</span>`;
       }
 
-      if (node.children && node.children.length > 0) {
-        html += ` <span style="color: #aaa;">{${node.children.length}}</span>`;
-        html += `\n${this.renderTagTreeNode(node.children, depth + 1)}`;
+      if (hasChildren) {
+        html += ` <span style="color: #aaa; margin-left: 4px;">{${node.children.length}}</span>`;
+      }
+
+      html += `</div>`;
+
+      // Children container
+      if (hasChildren) {
+        html += `<div style="margin-left: 20px; display: block;">`;
+        html += this.renderTagTreeNode(node.children, depth + 1);
+        html += `</div>`;
       }
 
       html += `</div>`;
