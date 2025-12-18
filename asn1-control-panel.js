@@ -532,6 +532,15 @@ class ASN1ControlPanel extends HTMLElement {
               </div>
             </div>
           </div>
+
+          <div class="section">
+            <div class="section-title">Tag Structure Map</div>
+            <div id="tagStructureMap" style="font-size: 11px; font-family: monospace; background: #f8f9fa; padding: 12px; border-radius: 4px; max-height: 400px; overflow-y: auto;">
+              <div class="empty-state" style="padding: 20px; text-align: center; color: #999;">
+                Decode data to see tag structure
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1743,12 +1752,96 @@ class ASN1ControlPanel extends HTMLElement {
       }));
 
       this.renderLabelForm();
+      this.renderTagStructureMap(serialized);
       this.showStatus(`Successfully decoded ${this.allNodes.length} node(s)`, "success");
 
     } catch (e) {
       console.error("Decode error:", e);
       this.showStatus(`Error: ${e.message}`, "error");
     }
+  }
+
+  renderTagStructureMap(data) {
+    const mapContainer = this.shadowRoot.getElementById("tagStructureMap");
+    if (!mapContainer) return;
+
+    try {
+      // Build the tag tree
+      const tagTree = this.buildTagTree(data);
+
+      // Render as nested structure
+      mapContainer.innerHTML = this.renderTagTreeNode(tagTree, 0);
+    } catch (e) {
+      console.error("Error rendering tag structure map:", e);
+      mapContainer.innerHTML = `<div style="color: red;">Error: ${e.message}</div>`;
+    }
+  }
+
+  buildTagTree(nodes, depth = 0) {
+    if (!Array.isArray(nodes)) {
+      nodes = [nodes];
+    }
+
+    return nodes.map((node, index) => {
+      const tagInfo = {
+        index: index,
+        class: node.tagClass,
+        number: node.tagNumber,
+        constructed: node.tagConstructed,
+        type: node.type,
+        baseType: node.baseType,
+        depth: depth,
+        children: []
+      };
+
+      // Recursively build children
+      if (node.sub && Array.isArray(node.sub)) {
+        tagInfo.children = this.buildTagTree(node.sub, depth + 1);
+      }
+
+      return tagInfo;
+    });
+  }
+
+  renderTagTreeNode(nodes, depth) {
+    const indent = '  '.repeat(depth);
+    let html = '';
+
+    nodes.forEach((node, idx) => {
+      const classNames = ['UNIV', 'APPL', 'CTXT', 'PRIV'];
+      const className = classNames[node.class] || node.class;
+      const form = node.constructed ? 'CONS' : 'PRIM';
+
+      // Color code by class
+      const colors = {
+        0: '#4a90e2', // Universal - blue
+        1: '#e24a4a', // Application - red
+        2: '#7ed321', // Context - green
+        3: '#f5a623'  // Private - orange
+      };
+      const color = colors[node.class] || '#999';
+
+      html += `<div style="margin: 2px 0; line-height: 1.6;">`;
+      html += `${indent}<span style="color: ${color}; font-weight: 600;">[${className} ${node.number}]</span> `;
+      html += `<span style="color: #666;">${form}</span>`;
+
+      if (node.type && node.type !== 'SEQUENCE' && node.type !== 'SET') {
+        html += ` <span style="color: #999;">→ ${node.type}</span>`;
+      }
+
+      if (node.baseType) {
+        html += ` <span style="color: #9b59b6;">→ ${node.baseType}</span>`;
+      }
+
+      if (node.children && node.children.length > 0) {
+        html += ` <span style="color: #aaa;">{${node.children.length}}</span>`;
+        html += `\n${this.renderTagTreeNode(node.children, depth + 1)}`;
+      }
+
+      html += `</div>`;
+    });
+
+    return html;
   }
 
   getASN1TypeName(tagClass, tagNumber, tagConstructed) {
