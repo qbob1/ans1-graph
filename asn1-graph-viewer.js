@@ -824,6 +824,12 @@ class ASN1GraphViewer extends HTMLElement {
       properties: [],
       children: [],
       rawData: obj, // Store raw data for editing
+      debugContext: parentSchema ? {
+        schemaName: parentSchema.name || 'Anonymous',
+        schemaType: parentSchema.type,
+        fieldCount: parentSchema.fields?.length || 0,
+        alternativeCount: parentSchema.alternatives?.length || 0
+      } : null
     };
 
     if (Array.isArray(obj)) {
@@ -1552,6 +1558,37 @@ class ASN1GraphViewer extends HTMLElement {
             ${baseType ? `<div style="margin-bottom: 4px;"><strong>Base Type:</strong> ${baseType}</div>` : ''}
             <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 11px; color: #666;">
               Raw: [${className.toUpperCase()} ${tagNumber}] ${tagConstructed ? 'CONSTRUCTED' : 'PRIMITIVE'}${baseType ? ` → ${baseType}` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Show debug context information (parent schema used for label lookup)
+    if (nodeData.data.debugContext) {
+      const ctx = nodeData.data.debugContext;
+      html += `
+        <div class="field-group">
+          <div class="field-label" style="color: #e74c3c;">🔍 Debug: Parent Schema Context</div>
+          <div class="field-value" style="font-family: monospace; background: #ffe6e6; padding: 8px; border-radius: 4px; border: 2px solid #e74c3c;">
+            <div style="margin-bottom: 4px;"><strong>Schema:</strong> ${ctx.schemaName}</div>
+            <div style="margin-bottom: 4px;"><strong>Type:</strong> ${ctx.schemaType}</div>
+            <div style="margin-bottom: 4px;"><strong>Fields:</strong> ${ctx.fieldCount}</div>
+            <div style="margin-bottom: 4px;"><strong>Alternatives:</strong> ${ctx.alternativeCount}</div>
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e74c3c; font-size: 11px; color: #666;">
+              This node was labeled using the above schema as context
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="field-group">
+          <div class="field-label" style="color: #e74c3c;">🔍 Debug: Parent Schema Context</div>
+          <div class="field-value" style="font-family: monospace; background: #ffe6e6; padding: 8px; border-radius: 4px; border: 2px solid #e74c3c;">
+            <div style="color: #e74c3c; font-weight: 600;">⚠️  NO PARENT SCHEMA</div>
+            <div style="margin-top: 4px; font-size: 11px; color: #666;">
+              This node was labeled using global schema search
             </div>
           </div>
         </div>
