@@ -21,6 +21,24 @@ class ASN1GraphViewer extends HTMLElement {
   connectedCallback() {
     this.render();
     this.initGraph();
+    this.setupWalkthroughListeners();
+  }
+
+  setupWalkthroughListeners() {
+    // Listen for highlight events from control panel walkthrough
+    document.addEventListener("highlightNode", (e) => {
+      this.highlightNodeByPath(e.detail.path);
+    });
+
+    // Listen for schema assignment events
+    document.addEventListener("assignSchema", (e) => {
+      this.assignSchemaToNode(e.detail.path, e.detail.schemaName);
+    });
+
+    // Listen for clear highlight events
+    document.addEventListener("clearHighlight", () => {
+      this.clearNodeHighlight();
+    });
   }
 
   render() {
@@ -2153,6 +2171,219 @@ class ASN1GraphViewer extends HTMLElement {
     if (this.data) {
       this.renderJson(this.data);
     }
+  }
+
+  /**
+   * Highlight a node by its path (for walkthrough)
+   */
+  highlightNodeByPath(path) {
+    console.log("🎯 Highlighting node:", path.join(" → "));
+
+    if (!this.svg) {
+      console.warn("SVG not initialized");
+      return;
+    }
+
+    // Clear previous highlight
+    this.clearNodeHighlight();
+
+    // Find the node by path
+    const findNodeByPath = (node, targetPath, currentPath = []) => {
+      const nodeName = node.data.name || 'unknown';
+      const newPath = [...currentPath, nodeName];
+
+      // Check if this node matches the target path
+      if (newPath.length === targetPath.length &&
+          newPath.every((name, idx) => name === targetPath[idx])) {
+        return node;
+      }
+
+      // Recursively search children
+      if (node.children) {
+        for (const child of node.children) {
+          const found = findNodeByPath(child, targetPath, newPath);
+          if (found) return found;
+        }
+      }
+
+      return null;
+    };
+
+    // Search through root nodes
+    const rootNodes = this.svg.selectAll(".node").data();
+    for (const rootNode of rootNodes) {
+      const targetNode = findNodeByPath(rootNode, path);
+      if (targetNode) {
+        // Highlight the circle
+        const nodeId = this.getNodeId(targetNode);
+        const nodeElement = this.svg.select(`#${nodeId}`);
+
+        if (nodeElement.size() > 0) {
+          // Add a pulsing highlight ring
+          const circle = nodeElement.select("circle");
+          const x = targetNode.x;
+          const y = targetNode.y;
+
+          // Add highlight ring
+          this.svg.append("circle")
+            .attr("class", "walkthrough-highlight")
+            .attr("cx", x)
+            .attr("cy", y)
+            .attr("r", 35)
+            .attr("fill", "none")
+            .attr("stroke", "#ff4444")
+            .attr("stroke-width", 3)
+            .attr("opacity", 0)
+            .transition()
+            .duration(500)
+            .attr("opacity", 1);
+
+          // Add second pulsing ring
+          this.svg.append("circle")
+            .attr("class", "walkthrough-highlight")
+            .attr("cx", x)
+            .attr("cy", y)
+            .attr("r", 35)
+            .attr("fill", "none")
+            .attr("stroke", "#ff4444")
+            .attr("stroke-width", 2)
+            .attr("opacity", 1)
+            .transition()
+            .duration(1500)
+            .ease(d3.easeSinInOut)
+            .attr("r", 50)
+            .attr("opacity", 0)
+            .on("end", function repeat() {
+              d3.select(this)
+                .attr("r", 35)
+                .attr("opacity", 1)
+                .transition()
+                .duration(1500)
+                .ease(d3.easeSinInOut)
+                .attr("r", 50)
+                .attr("opacity", 0)
+                .on("end", repeat);
+            });
+
+          // Pan to the node
+          const container = this.shadowRoot.getElementById("container");
+          const containerWidth = container.clientWidth;
+          const containerHeight = container.clientHeight;
+
+          const scale = d3.zoomTransform(this.svg.node()).k;
+          const newX = containerWidth / 2 - x * scale;
+          const newY = containerHeight / 2 - y * scale;
+
+          this.svg.transition()
+            .duration(750)
+            .call(this.zoom.transform, d3.zoomIdentity.translate(newX, newY).scale(scale));
+
+          console.log("  ✓ Node highlighted and centered");
+          return;
+        }
+      }
+    }
+
+    console.warn("  ⚠️  Node not found in graph");
+  }
+
+  /**
+   * Clear node highlight
+   */
+  clearNodeHighlight() {
+    if (!this.svg) return;
+
+    // Remove all highlight elements
+    this.svg.selectAll(".walkthrough-highlight").remove();
+
+    console.log("🔄 Cleared node highlight");
+  }
+
+  /**
+   * Assign a schema to a node and re-label it
+   */
+  assignSchemaToNode(path, schemaName) {
+    console.log(`📝 Assigning schema "${schemaName}" to node:`, path.join(" → "));
+
+    // Find the schema by name
+    const schema = this.schemas.find(s => s.name === schemaName);
+    if (!schema) {
+      console.error(`Schema "${schemaName}" not found`);
+      return;
+    }
+
+    console.log("  ✓ Found schema:", schema);
+
+    // Find the node in the data tree
+    const findAndUpdateNode = (hierarchyNode, targetPath, currentPath = []) => {
+      const nodeName = hierarchyNode.data.name || 'unknown';
+      const newPath = [...currentPath, nodeName];
+
+      // Check if this node matches the target path
+      if (newPath.length === targetPath.length &&
+          newPath.every((name, idx) => name === targetPath[idx])) {
+
+        // Update the node's data with schema information
+        console.log("  🎯 Found target node, applying schema...");
+
+        // Store the assigned schema
+        hierarchyNode.data.assignedSchema = schema.name;
+        hierarchyNode.data.schemaRoot = schema.root;
+
+        // Re-label based on schema
+        if (schema.root) {
+          const schemaType = schema.root.type || 'Unknown';
+          hierarchyNode.data.name = `${schemaName} (${schemaType})`;
+
+          console.log(`  ✓ Updated label to: ${hierarchyNode.data.name}`);
+        }
+
+        return true;
+      }
+
+      // Recursively search children
+      if (hierarchyNode.children) {
+        for (const child of hierarchyNode.children) {
+          if (findAndUpdateNode(child, targetPath, newPath)) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    };
+
+    // Update the data tree
+    if (this.svg) {
+      const rootNodes = this.svg.selectAll(".node").data();
+      for (const rootNode of rootNodes) {
+        if (findAndUpdateNode(rootNode, path)) {
+          // Re-render the graph with updated labels
+          console.log("  🔄 Re-rendering graph with updated labels...");
+
+          // Update text labels in the SVG
+          const updateLabels = (node) => {
+            const nodeId = this.getNodeId(node);
+            const nodeElement = this.svg.select(`#${nodeId}`);
+
+            if (nodeElement.size() > 0) {
+              nodeElement.select("text").text(node.data.name);
+            }
+
+            if (node.children) {
+              node.children.forEach(updateLabels);
+            }
+          };
+
+          updateLabels(rootNode);
+
+          console.log("  ✓ Schema assigned and graph updated");
+          return;
+        }
+      }
+    }
+
+    console.warn("  ⚠️  Node not found in graph");
   }
 }
 

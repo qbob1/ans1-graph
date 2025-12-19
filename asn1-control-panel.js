@@ -541,6 +541,32 @@ class ASN1ControlPanel extends HTMLElement {
               </div>
             </div>
           </div>
+
+          <div class="section">
+            <div class="section-title">Interactive Schema Assignment</div>
+            <button id="startSchemaWalkthrough" class="btn-primary" style="width: 100%; margin-bottom: 8px;">
+              ▶ Start Schema Walkthrough
+            </button>
+            <div id="walkthroughStatus" style="font-size: 12px; color: #666; text-align: center; padding: 8px;">
+              Click to step through nodes and assign schemas
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Schema Assignment Modal -->
+      <div id="schemaAssignmentOverlay" class="modal-overlay" style="display: none; z-index: 3000;"></div>
+      <div id="schemaAssignmentModal" class="schema-modal" style="display: none; z-index: 3001; max-width: 600px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+          <div style="font-size: 18px; font-weight: 600;">📍 Schema Assignment</div>
+        </div>
+        <div id="schemaAssignmentBody" style="padding: 20px;">
+          <!-- Content populated dynamically -->
+        </div>
+        <div style="padding: 0 20px 20px; display: flex; gap: 10px;">
+          <button id="schemaAssignmentNext" class="btn-primary" style="flex: 1;">Next ▶</button>
+          <button id="schemaAssignmentSkip" class="btn-secondary" style="flex: 1;">Skip</button>
+          <button id="schemaAssignmentStop" class="btn-secondary">Stop</button>
         </div>
       </div>
 
@@ -750,6 +776,34 @@ class ASN1ControlPanel extends HTMLElement {
 
     fieldDetailOverlay.addEventListener("click", () => {
       this.hideFieldDetail();
+    });
+
+    // Schema walkthrough handlers
+    const startWalkthroughBtn = this.shadowRoot.getElementById("startSchemaWalkthrough");
+    const schemaAssignmentModal = this.shadowRoot.getElementById("schemaAssignmentModal");
+    const schemaAssignmentOverlay = this.shadowRoot.getElementById("schemaAssignmentOverlay");
+    const schemaAssignmentNext = this.shadowRoot.getElementById("schemaAssignmentNext");
+    const schemaAssignmentSkip = this.shadowRoot.getElementById("schemaAssignmentSkip");
+    const schemaAssignmentStop = this.shadowRoot.getElementById("schemaAssignmentStop");
+
+    startWalkthroughBtn.addEventListener("click", () => {
+      this.startSchemaWalkthrough();
+    });
+
+    schemaAssignmentNext.addEventListener("click", () => {
+      this.continueWalkthrough();
+    });
+
+    schemaAssignmentSkip.addEventListener("click", () => {
+      this.skipCurrentNode();
+    });
+
+    schemaAssignmentStop.addEventListener("click", () => {
+      this.stopWalkthrough();
+    });
+
+    schemaAssignmentOverlay.addEventListener("click", () => {
+      // Don't allow closing by clicking overlay - must use button
     });
   }
 
@@ -2069,6 +2123,261 @@ class ASN1ControlPanel extends HTMLElement {
     }
 
     return obj;
+  }
+
+  // Interactive Schema Assignment Walkthrough Methods
+
+  startSchemaWalkthrough() {
+    if (!this.allNodes || this.allNodes.length === 0) {
+      this.showStatus("No decoded data available. Please decode some ASN.1 data first.", "error");
+      return;
+    }
+
+    console.log("🎬 Starting schema walkthrough...");
+
+    // Build a flat list of all nodes with their paths for traversal
+    this.walkthroughNodes = [];
+    this.walkthroughIndex = 0;
+
+    const buildNodeList = (node, path = [], depth = 0) => {
+      const nodePath = [...path, node.typeName || `Node_${depth}`];
+      this.walkthroughNodes.push({
+        node: node,
+        path: nodePath,
+        depth: depth
+      });
+
+      if (node.sub && node.sub.length > 0) {
+        node.sub.forEach((subNode, idx) => {
+          buildNodeList(subNode, nodePath, depth + 1);
+        });
+      }
+    };
+
+    // Build the list from all root nodes
+    this.allNodes.forEach(rootNode => buildNodeList(rootNode));
+
+    console.log(`  📊 Found ${this.walkthroughNodes.length} nodes to walk through`);
+
+    // Update status
+    const statusDiv = this.shadowRoot.getElementById("walkthroughStatus");
+    statusDiv.textContent = `Walking through ${this.walkthroughNodes.length} nodes...`;
+    statusDiv.style.color = "#2196F3";
+
+    // Show the first node
+    this.showCurrentNode();
+  }
+
+  showCurrentNode() {
+    if (this.walkthroughIndex >= this.walkthroughNodes.length) {
+      // Walkthrough complete
+      this.stopWalkthrough();
+      this.showStatus("Schema walkthrough completed!", "success");
+      return;
+    }
+
+    const currentItem = this.walkthroughNodes[this.walkthroughIndex];
+    const node = currentItem.node;
+    const path = currentItem.path;
+    const depth = currentItem.depth;
+
+    console.log(`\n📍 Node ${this.walkthroughIndex + 1}/${this.walkthroughNodes.length}:`, path.join(" → "));
+
+    // Get node information
+    const tagClass = node.tag?.tagClass;
+    const tagNumber = node.tag?.tagNumber;
+    const tagConstructed = node.tag?.tagConstructed;
+
+    const tagClassNames = {0: 'UNIVERSAL', 1: 'APPLICATION', 2: 'CONTEXT', 3: 'PRIVATE'};
+    const tagClassName = tagClassNames[tagClass] || 'UNKNOWN';
+
+    // Get available schemas from the viewer
+    const viewer = document.querySelector('asn1-graph-viewer');
+    const availableSchemas = viewer?.schemas || [];
+
+    // Build modal content
+    const modal = this.shadowRoot.getElementById("schemaAssignmentModal");
+    const overlay = this.shadowRoot.getElementById("schemaAssignmentOverlay");
+    const body = this.shadowRoot.getElementById("schemaAssignmentBody");
+
+    let html = `
+      <div style="padding: 20px;">
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+            Node ${this.walkthroughIndex + 1} of ${this.walkthroughNodes.length} • Depth: ${depth}
+          </div>
+          <div style="font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 4px;">
+            Path: ${path.join(" → ")}
+          </div>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+          <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">Current Node Info:</div>
+          <div style="font-size: 12px; font-family: monospace;">
+            <div><strong>Tag Class:</strong> ${tagClassName} (${tagClass})</div>
+            <div><strong>Tag Number:</strong> ${tagNumber}</div>
+            <div><strong>Form:</strong> ${tagConstructed ? 'CONSTRUCTED' : 'PRIMITIVE'}</div>
+            <div><strong>Type Name:</strong> ${node.typeName || '(none)'}</div>
+            ${node.content !== undefined ? `<div><strong>Content:</strong> ${String(node.content).substring(0, 100)}${String(node.content).length > 100 ? '...' : ''}</div>` : ''}
+            ${node.sub ? `<div><strong>Children:</strong> ${node.sub.length}</div>` : ''}
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">Assign Schema (Optional):</div>
+          <select id="schemaSelect" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+            <option value="">-- Skip / No Schema --</option>
+    `;
+
+    // Add available schemas to dropdown
+    if (availableSchemas && availableSchemas.length > 0) {
+      // Filter schemas that might match this tag
+      const matchingSchemas = availableSchemas.filter(schema => {
+        if (!schema.root) return false;
+
+        // Check if schema has matching tag
+        if (schema.root.tag) {
+          return schema.root.tag.class === tagClass && schema.root.tag.number === tagNumber;
+        }
+
+        // For CHOICE types, check alternatives
+        if (schema.root.type === 'CHOICE' && schema.root.alternatives) {
+          return schema.root.alternatives.some(alt =>
+            alt.tag && alt.tag.class === tagClass && alt.tag.number === tagNumber
+          );
+        }
+
+        return false;
+      });
+
+      const otherSchemas = availableSchemas.filter(s => !matchingSchemas.includes(s));
+
+      if (matchingSchemas.length > 0) {
+        html += `<optgroup label="Matching Schemas (${matchingSchemas.length})">`;
+        matchingSchemas.forEach(schema => {
+          const schemaName = schema.name || 'Unnamed Schema';
+          const schemaType = schema.root?.type || 'Unknown';
+          html += `<option value="${schemaName}">✓ ${schemaName} (${schemaType})</option>`;
+        });
+        html += `</optgroup>`;
+      }
+
+      if (otherSchemas.length > 0) {
+        html += `<optgroup label="Other Schemas (${otherSchemas.length})">`;
+        otherSchemas.forEach(schema => {
+          const schemaName = schema.name || 'Unnamed Schema';
+          const schemaType = schema.root?.type || 'Unknown';
+          html += `<option value="${schemaName}">${schemaName} (${schemaType})</option>`;
+        });
+        html += `</optgroup>`;
+      }
+    } else {
+      html += `<option value="" disabled>No schemas loaded</option>`;
+    }
+
+    html += `
+          </select>
+        </div>
+
+        <div style="font-size: 11px; color: #666; line-height: 1.5;">
+          💡 Select a schema to assign it to this node, or click Next/Skip to continue without assignment.
+          The schema will be used as context for labeling this node's children.
+        </div>
+      </div>
+    `;
+
+    body.innerHTML = html;
+
+    // Show modal
+    modal.style.display = "block";
+    overlay.style.display = "block";
+
+    // Emit event to highlight current node in graph viewer
+    this.dispatchEvent(new CustomEvent("highlightNode", {
+      detail: { path: path },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  continueWalkthrough() {
+    const modal = this.shadowRoot.getElementById("schemaAssignmentModal");
+    const schemaSelect = this.shadowRoot.getElementById("schemaSelect");
+
+    if (!schemaSelect) {
+      console.error("Schema select not found");
+      this.walkthroughIndex++;
+      this.showCurrentNode();
+      return;
+    }
+
+    const selectedSchema = schemaSelect.value;
+
+    if (selectedSchema) {
+      const currentItem = this.walkthroughNodes[this.walkthroughIndex];
+      console.log(`  ✓ Assigning schema "${selectedSchema}" to node at:`, currentItem.path.join(" → "));
+
+      // Emit event to assign schema to this node in the viewer
+      this.dispatchEvent(new CustomEvent("assignSchema", {
+        detail: {
+          path: currentItem.path,
+          schemaName: selectedSchema,
+          node: currentItem.node
+        },
+        bubbles: true,
+        composed: true
+      }));
+    } else {
+      console.log(`  → Skipping node (no schema assigned)`);
+    }
+
+    // Move to next node
+    this.walkthroughIndex++;
+
+    // Update status
+    const statusDiv = this.shadowRoot.getElementById("walkthroughStatus");
+    statusDiv.textContent = `Node ${this.walkthroughIndex}/${this.walkthroughNodes.length} processed...`;
+
+    // Show next node
+    this.showCurrentNode();
+  }
+
+  skipCurrentNode() {
+    console.log(`  ⏭️  Skipping node ${this.walkthroughIndex + 1}`);
+
+    // Just move to next without assignment
+    this.walkthroughIndex++;
+
+    // Update status
+    const statusDiv = this.shadowRoot.getElementById("walkthroughStatus");
+    statusDiv.textContent = `Node ${this.walkthroughIndex}/${this.walkthroughNodes.length} skipped...`;
+
+    this.showCurrentNode();
+  }
+
+  stopWalkthrough() {
+    console.log("🛑 Stopping schema walkthrough");
+
+    // Hide modal
+    const modal = this.shadowRoot.getElementById("schemaAssignmentModal");
+    const overlay = this.shadowRoot.getElementById("schemaAssignmentOverlay");
+    modal.style.display = "none";
+    overlay.style.display = "none";
+
+    // Clear state
+    this.walkthroughNodes = null;
+    this.walkthroughIndex = 0;
+
+    // Update status
+    const statusDiv = this.shadowRoot.getElementById("walkthroughStatus");
+    statusDiv.textContent = "Click to step through nodes and assign schemas";
+    statusDiv.style.color = "#666";
+
+    // Emit event to clear highlight in graph viewer
+    this.dispatchEvent(new CustomEvent("clearHighlight", {
+      bubbles: true,
+      composed: true
+    }));
   }
 
   renderLabelForm() {
